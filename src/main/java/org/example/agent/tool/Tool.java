@@ -1,0 +1,10 @@
+package org.example.agent.tool;
+
+import org.example.agent.core.ToolDefinition;
+
+import java.util.Map;
+
+public interface Tool {
+    ToolDefinition definition();
+    String execute(Map<String, Object> input);
+}

@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Map;
 
-public class EditFileTool implements org.example.agent.tool.Tool {
+public class EditFileTool implements Tool {
 
     private final PathSandbox sandbox;
 

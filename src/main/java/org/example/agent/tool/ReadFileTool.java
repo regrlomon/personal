@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Map;
 
-public class ReadFileTool implements org.example.agent.tool.Tool {
+public class ReadFileTool implements Tool {
 
     private static final int MAX_CHARS = 50_000;
 

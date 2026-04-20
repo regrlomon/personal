@@ -47,6 +47,7 @@ class FileToolsTest {
     void read_returns_error_on_missing_file() {
         var tool = new ReadFileTool(sandbox);
         var result = tool.execute(Map.of("path", "missing.txt"), ctx);
+        assertTrue(result.isError());
         assertTrue(result.content().startsWith("Error:"));
     }
 
@@ -54,6 +55,7 @@ class FileToolsTest {
     void read_rejects_path_outside_workdir() {
         var tool = new ReadFileTool(sandbox);
         var result = tool.execute(Map.of("path", "../../etc/passwd"), ctx);
+        assertTrue(result.isError());
         assertTrue(result.content().startsWith("Error:"));
     }
 
@@ -81,6 +83,7 @@ class FileToolsTest {
     void write_rejects_path_outside_workdir() {
         var tool = new WriteFileTool(sandbox);
         var result = tool.execute(Map.of("path", "../../evil.txt", "content", "x"), ctx);
+        assertTrue(result.isError());
         assertTrue(result.content().startsWith("Error:"));
     }
 
@@ -99,6 +102,7 @@ class FileToolsTest {
         Files.writeString(workdir.resolve("code.java"), "int x = 1;");
         var tool = new EditFileTool(sandbox);
         var result = tool.execute(Map.of("path", "code.java", "old_text", "NOT FOUND", "new_text", "x"), ctx);
+        assertTrue(result.isError());
         assertTrue(result.content().startsWith("Error:"));
     }
 
@@ -106,6 +110,7 @@ class FileToolsTest {
     void edit_rejects_path_outside_workdir() {
         var tool = new EditFileTool(sandbox);
         var result = tool.execute(Map.of("path", "../../evil.java", "old_text", "a", "new_text", "b"), ctx);
+        assertTrue(result.isError());
         assertTrue(result.content().startsWith("Error:"));
     }
 }

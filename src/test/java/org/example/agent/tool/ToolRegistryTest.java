@@ -1,6 +1,5 @@
 package org.example.agent.tool;
 
-import org.example.agent.core.ContentBlock;
 import org.example.agent.core.ToolDefinition;
 import org.junit.jupiter.api.Test;
 
@@ -32,25 +31,17 @@ class ToolRegistryTest {
     }
 
     @Test
-    void execute_known_tool_returns_tool_result_block() {
+    void get_returns_registered_tool_by_name() {
         var registry = new ToolRegistry();
-        registry.register(echoTool());
-
-        var toolUse = new ContentBlock.ToolUse("call-1", "echo", Map.of("text", "hello"));
-        var result = registry.execute(toolUse);
-
-        assertEquals("call-1", result.toolUseId());
-        assertEquals("hello", result.content());
+        var tool = echoTool();
+        registry.register(tool);
+        assertSame(tool, registry.get("echo"));
     }
 
     @Test
-    void execute_unknown_tool_returns_error_string() {
+    void get_returns_null_for_unknown_tool() {
         var registry = new ToolRegistry();
-        var toolUse = new ContentBlock.ToolUse("call-2", "nonexistent", Map.of());
-
-        var result = registry.execute(toolUse);
-        assertEquals("call-2", result.toolUseId());
-        assertTrue(result.content().contains("nonexistent"));
+        assertNull(registry.get("nonexistent"));
     }
 
     @Test

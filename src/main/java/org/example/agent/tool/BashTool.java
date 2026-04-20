@@ -24,17 +24,17 @@ public class BashTool implements Tool {
     }
 
     @Override
-    public String execute(Map<String, Object> input) {
+    public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
         try {
             var process = new ProcessBuilder("bash", "-c", (String) input.get("command"))
                     .redirectErrorStream(true)
                     .start();
             var output = new String(process.getInputStream().readAllBytes());
             process.waitFor();
-            return output;
+            return ToolResultEnvelope.success(output);
         } catch (IOException | InterruptedException e) {
             Thread.currentThread().interrupt();
-            return "Error: " + e.getMessage();
+            return ToolResultEnvelope.error("Error: " + e.getMessage());
         }
     }
 }

@@ -32,21 +32,21 @@ public class EditFileTool implements org.example.agent.tool.Tool {
     }
 
     @Override
-    public String execute(Map<String, Object> input) {
+    public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
         try {
             var path = sandbox.resolve((String) input.get("path"));
             var oldText = (String) input.get("old_text");
             var newText = (String) input.get("new_text");
             var content = Files.readString(path);
             if (!content.contains(oldText)) {
-                return "Error: old_text not found in " + path.getFileName();
+                return ToolResultEnvelope.error("Error: old_text not found in " + path.getFileName());
             }
             Files.writeString(path, content.replace(oldText, newText));
-            return "OK: edited " + path.getFileName();
+            return ToolResultEnvelope.success("OK: edited " + path.getFileName());
         } catch (SecurityException e) {
-            return "Error: " + e.getMessage();
+            return ToolResultEnvelope.error("Error: " + e.getMessage());
         } catch (IOException e) {
-            return "Error: cannot edit file: " + e.getMessage();
+            return ToolResultEnvelope.error("Error: cannot edit file: " + e.getMessage());
         }
     }
 }

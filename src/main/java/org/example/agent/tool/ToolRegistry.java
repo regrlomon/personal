@@ -19,12 +19,17 @@ public class ToolRegistry {
         return tools.values().stream().map(Tool::definition).toList();
     }
 
+    public Tool get(String name) {
+        return tools.get(name);
+    }
+
     public ContentBlock.ToolResult execute(ContentBlock.ToolUse toolUse) {
+        var ctx = ToolUseContext.defaults(System.getProperty("user.dir"));
         var tool = tools.get(toolUse.name());
         if (tool == null) {
             return new ContentBlock.ToolResult(toolUse.id(), "Unknown tool: " + toolUse.name());
         }
-        var result = tool.execute(toolUse.input());
-        return new ContentBlock.ToolResult(toolUse.id(), result);
+        var envelope = tool.execute(toolUse.input(), ctx);
+        return new ContentBlock.ToolResult(toolUse.id(), envelope.content());
     }
 }

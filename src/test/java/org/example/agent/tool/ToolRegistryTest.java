@@ -17,8 +17,8 @@ class ToolRegistryTest {
                 return new ToolDefinition("echo", "Echoes input", Map.of());
             }
             @Override
-            public String execute(Map<String, Object> input) {
-                return String.valueOf(input.get("text"));
+            public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
+                return ToolResultEnvelope.success(String.valueOf(input.get("text")));
             }
         };
     }
@@ -63,8 +63,8 @@ class ToolRegistryTest {
                 return new ToolDefinition("noop", "Does nothing", Map.of());
             }
             @Override
-            public String execute(Map<String, Object> input) {
-                return "ok";
+            public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
+                return ToolResultEnvelope.success("ok");
             }
         });
         assertEquals(2, registry.definitions().size());

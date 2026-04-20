@@ -5,6 +5,8 @@ import org.example.agent.model.ModelResponse;
 import org.example.agent.model.StopReason;
 import org.example.agent.tool.Tool;
 import org.example.agent.tool.ToolRegistry;
+import org.example.agent.tool.ToolResultEnvelope;
+import org.example.agent.tool.ToolUseContext;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -69,8 +71,8 @@ class QueryEngineTest {
                 return new ToolDefinition("greet", "Greet someone", Map.of());
             }
             @Override
-            public String execute(Map<String, Object> input) {
-                return "Hello, " + input.get("name") + "!";
+            public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
+                return ToolResultEnvelope.success("Hello, " + input.get("name") + "!");
             }
         });
 

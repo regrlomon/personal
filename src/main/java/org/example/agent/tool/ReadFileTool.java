@@ -33,7 +33,7 @@ public class ReadFileTool implements org.example.agent.tool.Tool {
     }
 
     @Override
-    public String execute(Map<String, Object> input) {
+    public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
         try {
             var path = sandbox.resolve((String) input.get("path"));
             var text = Files.readString(path);
@@ -45,11 +45,12 @@ public class ReadFileTool implements org.example.agent.tool.Tool {
                     text = String.join("\n", java.util.Arrays.copyOf(lines, limit));
                 }
             }
-            return text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS) : text;
+            var result = text.length() > MAX_CHARS ? text.substring(0, MAX_CHARS) : text;
+            return ToolResultEnvelope.success(result);
         } catch (SecurityException e) {
-            return "Error: " + e.getMessage();
+            return ToolResultEnvelope.error("Error: " + e.getMessage());
         } catch (IOException e) {
-            return "Error: cannot read file: " + e.getMessage();
+            return ToolResultEnvelope.error("Error: cannot read file: " + e.getMessage());
         }
     }
 }

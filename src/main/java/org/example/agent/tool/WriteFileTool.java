@@ -31,16 +31,16 @@ public class WriteFileTool implements org.example.agent.tool.Tool {
     }
 
     @Override
-    public String execute(Map<String, Object> input) {
+    public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
         try {
             var path = sandbox.resolve((String) input.get("path"));
             Files.createDirectories(path.getParent());
             Files.writeString(path, (String) input.get("content"));
-            return "OK: wrote " + path.getFileName();
+            return ToolResultEnvelope.success("OK: wrote " + path.getFileName());
         } catch (SecurityException e) {
-            return "Error: " + e.getMessage();
+            return ToolResultEnvelope.error("Error: " + e.getMessage());
         } catch (IOException e) {
-            return "Error: cannot write file: " + e.getMessage();
+            return ToolResultEnvelope.error("Error: cannot write file: " + e.getMessage());
         }
     }
 }

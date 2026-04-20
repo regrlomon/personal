@@ -16,7 +16,7 @@ public class QueryEngine {
     private static final String CONTINUE_PROMPT = "Please continue.";
 
     private final ModelClient modelClient;
-    private final ToolRegistry toolRegistry;
+    private final ToolRegistry toolRegistry; // definitions only; execution goes through toolRouter
     private final ToolRouter toolRouter;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
@@ -92,6 +92,8 @@ public class QueryEngine {
                         return toolRouter.route(toolUse, ctx);
                     } catch (UnknownToolException e) {
                         return new ContentBlock.ToolResult(toolUse.id(), e.getMessage());
+                    } catch (UnsupportedOperationException e) {
+                        return new ContentBlock.ToolResult(toolUse.id(), "MCP tools not yet supported");
                     }
                 })
                 .toList();

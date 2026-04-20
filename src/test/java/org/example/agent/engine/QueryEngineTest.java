@@ -173,4 +173,29 @@ class QueryEngineTest {
         var toolResult = (ContentBlock.ToolResult) success.messages().get(2).content().get(0);
         assertTrue(toolResult.content().contains("nonexistent_tool"));
     }
+
+    // ---------------------------------------------------------------
+    // MCP tools: engine catches UnsupportedOperationException and returns error ToolResult
+    // ---------------------------------------------------------------
+
+    @Test
+    void mcp_tool_returns_error_result_and_continues() {
+        var registry = new ToolRegistry();
+
+        var toolUse = new ContentBlock.ToolUse("call-y", "mcp__postgres__query", Map.of());
+        var responses = new ModelResponse[]{
+                new ModelResponse(List.of(toolUse), StopReason.TOOL_USE, 10, 5),
+                new ModelResponse(List.of(new ContentBlock.Text("Done.")), StopReason.END_TURN, 10, 5)
+        };
+        var idx = new int[]{0};
+
+        var engine = new QueryEngine(request -> responses[idx[0]++], registry);
+        var result = engine.run(params("call mcp tool"));
+
+        assertInstanceOf(QueryResult.Success.class, result);
+        var success = (QueryResult.Success) result;
+        assertEquals(4, success.messages().size());
+        var toolResult = (ContentBlock.ToolResult) success.messages().get(2).content().get(0);
+        assertEquals("MCP tools not yet supported", toolResult.content());
+    }
 }

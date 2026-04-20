@@ -1,6 +1,7 @@
 package org.example.agent.tool;
 
 import java.util.List;
+import java.util.Objects;
 
 public record ToolResultEnvelope(
         boolean ok,
@@ -8,6 +9,10 @@ public record ToolResultEnvelope(
         boolean isError,
         List<Object> attachments
 ) {
+    public ToolResultEnvelope {
+        Objects.requireNonNull(content, "content must not be null");
+    }
+
     public static ToolResultEnvelope success(String content) {
         return new ToolResultEnvelope(true, content, false, List.of());
     }

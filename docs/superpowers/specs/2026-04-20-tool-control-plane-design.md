@@ -153,7 +153,7 @@ QueryEngine.run()
 |---|---|
 | `FileToolsTest`, `BashToolTest` | Add `ToolUseContext.defaults(cwd)` as second argument to `execute()` |
 | `ToolRegistryTest` | Remove tests for `registry.execute()`; add test for `registry.get()` |
-| `QueryEngineTest` | No constructor change; existing tests remain valid |
+| `QueryEngineTest` | Constructor signature unchanged; any inline Tool stubs need updated `execute(input, ctx)` signature |
 | `ToolRouterTest` (new) | Native dispatch succeeds; `mcp__*` name throws `UnsupportedOperationException`; unknown name throws `UnknownToolException` |
 
 ---

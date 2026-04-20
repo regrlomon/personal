@@ -2,6 +2,7 @@ package org.example.agent.tool;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class ToolUseContext {
 
@@ -24,6 +25,7 @@ public class ToolUseContext {
     }
 
     public static ToolUseContext defaults(String cwd) {
+        Objects.requireNonNull(cwd, "cwd must not be null");
         return new ToolUseContext(Map.of(), Map.of(), Map.of(), List.of(), cwd);
     }
 

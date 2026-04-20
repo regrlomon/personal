@@ -74,7 +74,7 @@ public class QueryEngine {
         Integer maxTokens = state.maxOutputTokensOverride()
                 .orElse(params.maxOutputTokensOverride());
         return new ModelRequest(
-                state.messages(),
+                MessageNormalizer.normalize(state.messages()),
                 params.systemPrompt(),
                 toolRegistry.definitions(),
                 maxTokens

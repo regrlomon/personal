@@ -44,12 +44,13 @@ class ToolRegistryTest {
     }
 
     @Test
-    void execute_unknown_tool_throws_unknown_tool_exception() {
+    void execute_unknown_tool_returns_error_string() {
         var registry = new ToolRegistry();
         var toolUse = new ContentBlock.ToolUse("call-2", "nonexistent", Map.of());
 
-        var ex = assertThrows(UnknownToolException.class, () -> registry.execute(toolUse));
-        assertTrue(ex.getMessage().contains("nonexistent"));
+        var result = registry.execute(toolUse);
+        assertEquals("call-2", result.toolUseId());
+        assertTrue(result.content().contains("nonexistent"));
     }
 
     @Test

@@ -22,7 +22,7 @@ public class ToolRegistry {
     public ContentBlock.ToolResult execute(ContentBlock.ToolUse toolUse) {
         var tool = tools.get(toolUse.name());
         if (tool == null) {
-            throw new UnknownToolException(toolUse.name());
+            return new ContentBlock.ToolResult(toolUse.id(), "Unknown tool: " + toolUse.name());
         }
         var result = tool.execute(toolUse.input());
         return new ContentBlock.ToolResult(toolUse.id(), result);

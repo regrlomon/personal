@@ -146,4 +146,31 @@ class QueryEngineTest {
         assertInstanceOf(QueryResult.Success.class, result);
         assertEquals(1, ((QueryResult.Success) result).totalTurns());
     }
+
+    // ---------------------------------------------------------------
+    // UNKNOWN TOOL: engine catches UnknownToolException and returns error ToolResult
+    // ---------------------------------------------------------------
+
+    @Test
+    void unknown_tool_returns_error_result_and_continues() {
+        var registry = new ToolRegistry();
+        // registry is empty — no tools registered
+
+        var toolUse = new ContentBlock.ToolUse("call-x", "nonexistent_tool", Map.of());
+        var responses = new ModelResponse[]{
+                new ModelResponse(List.of(toolUse), StopReason.TOOL_USE, 10, 5),
+                new ModelResponse(List.of(new ContentBlock.Text("Done.")), StopReason.END_TURN, 10, 5)
+        };
+        var idx = new int[]{0};
+
+        var engine = new QueryEngine(request -> responses[idx[0]++], registry);
+        var result = engine.run(params("call a tool"));
+
+        assertInstanceOf(QueryResult.Success.class, result);
+        var success = (QueryResult.Success) result;
+        // messages: user → assistant(tooluse) → user(error toolresult) → assistant("Done.")
+        assertEquals(4, success.messages().size());
+        var toolResult = (ContentBlock.ToolResult) success.messages().get(2).content().get(0);
+        assertTrue(toolResult.content().contains("nonexistent_tool"));
+    }
 }

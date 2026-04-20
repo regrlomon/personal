@@ -7,6 +7,7 @@ import org.example.agent.model.ModelResponse;
 import org.example.agent.tool.ToolRegistry;
 import org.example.agent.tool.ToolRouter;
 import org.example.agent.tool.ToolUseContext;
+import org.example.agent.tool.UnknownToolException;
 
 import java.util.List;
 
@@ -85,7 +86,14 @@ public class QueryEngine {
     private List<ContentBlock.ToolResult> collectResults(ModelResponse response, ToolUseContext ctx) {
         return response.content().stream()
                 .filter(b -> b instanceof ContentBlock.ToolUse)
-                .map(b -> toolRouter.route((ContentBlock.ToolUse) b, ctx))
+                .map(b -> {
+                    var toolUse = (ContentBlock.ToolUse) b;
+                    try {
+                        return toolRouter.route(toolUse, ctx);
+                    } catch (UnknownToolException e) {
+                        return new ContentBlock.ToolResult(toolUse.id(), e.getMessage());
+                    }
+                })
                 .toList();
     }
 

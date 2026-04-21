@@ -7,6 +7,7 @@ import org.example.agent.model.ModelResponse;
 import org.example.agent.model.StopReason;
 import org.example.agent.tool.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -14,6 +15,8 @@ import java.util.concurrent.ForkJoinPool;
 public class QueryEngine {
 
     private static final String CONTINUE_PROMPT = "Please continue.";
+    private static final String REMINDER_TEXT =
+            "<reminder>Refresh your todo plan before continuing.</reminder>";
 
     private final ModelClient modelClient;
     private final ToolRegistry toolRegistry;
@@ -45,9 +48,13 @@ public class QueryEngine {
                     state.appendMessage(new Message(Role.ASSISTANT, response.content()));
                     return new QueryResult.Success(state.messages(), state.turnCount());
                 }
+                ctx.planningState().tickRound();
                 var execResult = runtime.execute(toolUses, ctx);
                 ctx = execResult.updatedContext();
-                advance(state, new TransitionReason.ToolResultContinuation(execResult.toolResults()), response);
+                state.appendMessage(new Message(Role.ASSISTANT, response.content()));
+                state.appendMessage(buildToolResultMessage(execResult.toolResults(), ctx.planningState().needsReminder()));
+                state.setLastTransition(new TransitionReason.ToolResultContinuation(execResult.toolResults()));
+                state.incrementTurn();
             } else {
                 var transition = decide(state, response);
                 if (transition == null) {
@@ -72,7 +79,7 @@ public class QueryEngine {
         switch (t) {
             case TransitionReason.ToolResultContinuation c -> {
                 state.appendMessage(new Message(Role.ASSISTANT, response.content()));
-                state.appendMessage(buildToolResultMessage(c.results()));
+                state.appendMessage(buildToolResultMessage(c.results(), false));
                 state.setLastTransition(t);
                 state.incrementTurn();
             }
@@ -101,7 +108,12 @@ public class QueryEngine {
         );
     }
 
-    private Message buildToolResultMessage(List<ContentBlock.ToolResult> results) {
-        return new Message(Role.USER, List.copyOf(results));
+    private Message buildToolResultMessage(List<ContentBlock.ToolResult> results, boolean prependReminder) {
+        List<ContentBlock> blocks = new ArrayList<>();
+        if (prependReminder) {
+            blocks.add(new ContentBlock.Text(REMINDER_TEXT));
+        }
+        blocks.addAll(results);
+        return new Message(Role.USER, List.copyOf(blocks));
     }
 }

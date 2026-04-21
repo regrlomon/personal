@@ -77,12 +77,6 @@ public class QueryEngine {
 
     private void advance(QueryState state, TransitionReason t, ModelResponse response) {
         switch (t) {
-            case TransitionReason.ToolResultContinuation c -> {
-                state.appendMessage(new Message(Role.ASSISTANT, response.content()));
-                state.appendMessage(buildToolResultMessage(c.results(), false));
-                state.setLastTransition(t);
-                state.incrementTurn();
-            }
             case TransitionReason.MaxTokensRecovery m -> {
                 state.appendMessage(new Message(Role.ASSISTANT, response.content()));
                 state.appendMessage(Message.user(CONTINUE_PROMPT));
@@ -94,6 +88,7 @@ public class QueryEngine {
             case TransitionReason.TransportRetry r -> { /* s11 extension */ }
             case TransitionReason.StopHookContinuation h -> { /* s08 extension */ }
             case TransitionReason.BudgetContinuation b -> { /* budget extension */ }
+            case TransitionReason.ToolResultContinuation c -> throw new IllegalStateException("ToolResultContinuation should not reach advance()");
         }
     }
 

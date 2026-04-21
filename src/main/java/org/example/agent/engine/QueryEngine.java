@@ -37,6 +37,7 @@ public class QueryEngine {
         var state = QueryState.from(params);
         var ctx = ToolUseContext.defaults(System.getProperty("user.dir"));
         while (true) {
+            // turnCount starts at 1; > maxTurns allows exactly maxTurns model calls.
             if (params.maxTurns() != null && state.turnCount() > params.maxTurns()) {
                 return new QueryResult.Success(state.messages(), state.turnCount());
             }

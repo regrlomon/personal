@@ -198,4 +198,40 @@ class QueryEngineTest {
         var toolResult = (ContentBlock.ToolResult) success.messages().get(2).content().get(0);
         assertEquals("MCP tools not yet supported", toolResult.content());
     }
+
+    // ---------------------------------------------------------------
+    // maxTurns: loop should halt after the specified number of turns
+    // ---------------------------------------------------------------
+
+    @Test
+    void max_turns_halts_loop_at_limit() {
+        var registry = new ToolRegistry();
+        registry.register(new Tool() {
+            @Override
+            public ToolDefinition definition() {
+                return new ToolDefinition("work", "", Map.of());
+            }
+            @Override
+            public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
+                return ToolResultEnvelope.success("ok");
+            }
+        });
+
+        var callCount = new int[]{0};
+        var engine = new QueryEngine(
+                request -> {
+                    callCount[0]++;
+                    return new ModelResponse(
+                            List.of(new ContentBlock.ToolUse("id-" + callCount[0], "work", Map.of())),
+                            StopReason.TOOL_USE, 10, 5);
+                },
+                registry
+        );
+
+        var params = new QueryParams(List.of(Message.user("work forever")), null, null, null, 2);
+        var result = engine.run(params);
+
+        assertInstanceOf(QueryResult.Success.class, result);
+        assertEquals(2, callCount[0]);
+    }
 }

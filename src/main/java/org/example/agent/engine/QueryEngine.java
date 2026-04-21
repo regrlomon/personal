@@ -37,6 +37,9 @@ public class QueryEngine {
         var state = QueryState.from(params);
         var ctx = ToolUseContext.defaults(System.getProperty("user.dir"));
         while (true) {
+            if (params.maxTurns() != null && state.turnCount() > params.maxTurns()) {
+                return new QueryResult.Success(state.messages(), state.turnCount());
+            }
             var response = modelClient.call(buildRequest(state, params));
 
             if (response.stopReason() == StopReason.TOOL_USE) {

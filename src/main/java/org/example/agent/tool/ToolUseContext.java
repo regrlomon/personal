@@ -36,6 +36,7 @@ public class ToolUseContext {
     public String              cwd()               { return cwd; }
 
     public ToolUseContext withNotifications(List<String> notifications) {
+        Objects.requireNonNull(notifications, "notifications must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
                 List.copyOf(notifications), cwd);
     }

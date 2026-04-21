@@ -40,5 +40,18 @@ class ToolUseContextTest {
         mutable.add("after"); // mutate original list
         assertEquals(List.of("before"), updated.notifications()); // copy not affected
     }
+
+    @Test
+    void defaults_creates_non_null_planning_state() {
+        var ctx = ToolUseContext.defaults("/workspace");
+        assertNotNull(ctx.planningState());
+    }
+
+    @Test
+    void withNotifications_preserves_same_planning_state_reference() {
+        var ctx = ToolUseContext.defaults(".");
+        var updated = ctx.withNotifications(List.of("msg"));
+        assertSame(ctx.planningState(), updated.planningState());
+    }
 }
 

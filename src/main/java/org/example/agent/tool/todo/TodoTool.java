@@ -44,11 +44,14 @@ public class TodoTool implements Tool {
     @Override
     @SuppressWarnings("unchecked")
     public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
-        var rawItems = (List<Map<String, Object>>) input.get("items");
-        List<PlanItem> planItems = rawItems.stream()
-                .map(this::toPlanItem)
-                .toList();
         try {
+            var rawItems = (List<Map<String, Object>>) input.get("items");
+            if (rawItems == null) {
+                return ToolResultEnvelope.error("items field is required");
+            }
+            List<PlanItem> planItems = rawItems.stream()
+                    .map(this::toPlanItem)
+                    .toList();
             ctx.planningState().update(planItems);
         } catch (IllegalArgumentException e) {
             return ToolResultEnvelope.error(e.getMessage());

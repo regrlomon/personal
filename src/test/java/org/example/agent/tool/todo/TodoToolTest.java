@@ -56,4 +56,21 @@ class TodoToolTest {
     void definition_has_correct_name() {
         assertEquals("todo", tool.definition().name());
     }
+
+    @Test
+    void execute_returns_error_when_items_field_missing() {
+        var result = tool.execute(Map.of(), ctx);  // no "items" key
+        assertFalse(result.ok());
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void execute_returns_error_for_unknown_status() {
+        var items = List.of(
+            Map.<String, Object>of("content", "task", "status", "unknown_status", "activeForm", "")
+        );
+        var result = tool.execute(Map.of("items", items), ctx);
+        assertFalse(result.ok());
+        assertTrue(result.isError());
+    }
 }

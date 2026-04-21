@@ -113,4 +113,26 @@ class FileToolsTest {
         assertTrue(result.isError());
         assertTrue(result.content().startsWith("Error:"));
     }
+
+    // --- isConcurrencySafe() assertions ---
+
+    @Test
+    void readFileTool_is_concurrency_safe() {
+        assertTrue(new ReadFileTool(sandbox).isConcurrencySafe());
+    }
+
+    @Test
+    void writeFileTool_is_not_concurrency_safe() {
+        assertFalse(new WriteFileTool(sandbox).isConcurrencySafe());
+    }
+
+    @Test
+    void editFileTool_is_not_concurrency_safe() {
+        assertFalse(new EditFileTool(sandbox).isConcurrencySafe());
+    }
+
+    @Test
+    void bashTool_is_not_concurrency_safe() {
+        assertFalse(new BashTool().isConcurrencySafe());
+    }
 }

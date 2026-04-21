@@ -42,7 +42,9 @@ class ToolExecutionRuntimeTest {
     }
 
     @Test
-    void partition_groups_consecutive_safe_tools_and_isolates_unsafe() {
+    void mixed_safe_and_unsafe_tools_execute_in_original_order() {
+        // r1,r2 safe → concurrent batch; w1 unsafe → exclusive; r3 safe → concurrent
+        // all should appear in original order in results
         var rt = runtime(
             simpleTool("r1", "a", true), simpleTool("r2", "b", true),
             simpleTool("w1", "c", false), simpleTool("r3", "d", true)
@@ -54,15 +56,17 @@ class ToolExecutionRuntimeTest {
             new ContentBlock.ToolUse("4", "r3", Map.of())
         );
 
-        var batches = rt.partition(toolUses);
+        var result = rt.execute(toolUses, ctx);
 
-        assertEquals(3, batches.size());
-        assertTrue(batches.get(0).concurrencySafe());
-        assertEquals(2, batches.get(0).toolUses().size());
-        assertFalse(batches.get(1).concurrencySafe());
-        assertEquals(1, batches.get(1).toolUses().size());
-        assertTrue(batches.get(2).concurrencySafe());
-        assertEquals(1, batches.get(2).toolUses().size());
+        assertEquals(4, result.toolResults().size());
+        assertEquals("1", result.toolResults().get(0).toolUseId());
+        assertEquals("a", result.toolResults().get(0).content());
+        assertEquals("2", result.toolResults().get(1).toolUseId());
+        assertEquals("b", result.toolResults().get(1).content());
+        assertEquals("3", result.toolResults().get(2).toolUseId());
+        assertEquals("c", result.toolResults().get(2).content());
+        assertEquals("4", result.toolResults().get(3).toolUseId());
+        assertEquals("d", result.toolResults().get(3).content());
     }
 
     @Test
@@ -133,6 +137,7 @@ class ToolExecutionRuntimeTest {
                 };
                 return new ToolResultEnvelope(true, "a", false, List.of(), Optional.of(mod));
             }
+            @Override public boolean isConcurrencySafe() { return true; }  // 走并发路径
         };
         Tool toolB = new Tool() {
             @Override public ToolDefinition definition() { return new ToolDefinition("tool_b", "", Map.of()); }
@@ -144,6 +149,7 @@ class ToolExecutionRuntimeTest {
                 };
                 return new ToolResultEnvelope(true, "b", false, List.of(), Optional.of(mod));
             }
+            @Override public boolean isConcurrencySafe() { return true; }  // 走并发路径
         };
 
         var registry = new ToolRegistry();

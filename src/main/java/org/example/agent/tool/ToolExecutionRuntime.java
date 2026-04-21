@@ -4,6 +4,7 @@ import org.example.agent.core.ContentBlock;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
@@ -13,11 +14,12 @@ public class ToolExecutionRuntime {
     private final ExecutorService executor;
 
     public ToolExecutionRuntime(ToolRouter router, ExecutorService executor) {
-        this.router = router;
-        this.executor = executor;
+        this.router = Objects.requireNonNull(router, "router must not be null");
+        this.executor = Objects.requireNonNull(executor, "executor must not be null");
     }
 
     public ExecutionResult execute(List<ContentBlock.ToolUse> toolUses, ToolUseContext ctx) {
+        Objects.requireNonNull(toolUses, "toolUses must not be null");
         var batches = partition(toolUses);
         var allResults = new ArrayList<ContentBlock.ToolResult>();
         var currentCtx = ctx;
@@ -36,7 +38,7 @@ public class ToolExecutionRuntime {
         return new ExecutionResult(List.copyOf(allResults), currentCtx);
     }
 
-    List<ToolExecutionBatch> partition(List<ContentBlock.ToolUse> toolUses) {
+    private List<ToolExecutionBatch> partition(List<ContentBlock.ToolUse> toolUses) {
         var batches = new ArrayList<ToolExecutionBatch>();
         var safeBatch = new ArrayList<ContentBlock.ToolUse>();
 

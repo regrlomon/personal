@@ -53,4 +53,7 @@ public class ReadFileTool implements Tool {
             return ToolResultEnvelope.error("Error: cannot read file: " + e.getMessage());
         }
     }
+
+    @Override
+    public boolean isConcurrencySafe() { return true; }
 }

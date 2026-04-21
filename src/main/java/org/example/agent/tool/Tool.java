@@ -6,4 +6,6 @@ import java.util.Map;
 public interface Tool {
     ToolDefinition definition();
     ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx);
+
+    default boolean isConcurrencySafe() { return false; }
 }

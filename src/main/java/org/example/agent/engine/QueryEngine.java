@@ -8,6 +8,7 @@ import org.example.agent.model.StopReason;
 import org.example.agent.tool.*;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 
 public class QueryEngine {
@@ -19,10 +20,14 @@ public class QueryEngine {
     private final ToolExecutionRuntime runtime;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
+        this(modelClient, toolRegistry, ForkJoinPool.commonPool());
+    }
+
+    QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, ExecutorService executor) {
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
         var router = new ToolRouter(toolRegistry);
-        this.runtime = new ToolExecutionRuntime(router, ForkJoinPool.commonPool());
+        this.runtime = new ToolExecutionRuntime(router, executor);
     }
 
     public QueryResult run(QueryParams params) {
@@ -36,6 +41,10 @@ public class QueryEngine {
                         .filter(b -> b instanceof ContentBlock.ToolUse)
                         .map(b -> (ContentBlock.ToolUse) b)
                         .toList();
+                if (toolUses.isEmpty()) {
+                    state.appendMessage(new Message(Role.ASSISTANT, response.content()));
+                    return new QueryResult.Success(state.messages(), state.turnCount());
+                }
                 var execResult = runtime.execute(toolUses, ctx);
                 ctx = execResult.updatedContext();
                 advance(state, new TransitionReason.ToolResultContinuation(execResult.toolResults()), response);

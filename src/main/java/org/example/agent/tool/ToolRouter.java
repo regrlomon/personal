@@ -1,5 +1,6 @@
 package org.example.agent.tool;
 
+import java.util.Objects;
 import org.example.agent.core.ContentBlock;
 
 public class ToolRouter {
@@ -11,19 +12,8 @@ public class ToolRouter {
     }
 
     public ContentBlock.ToolResult route(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
-        if (toolUse.name().startsWith("mcp__")) return routeMcp(toolUse, ctx);
-        return routeNative(toolUse, ctx);
-    }
-
-    private ContentBlock.ToolResult routeNative(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
-        var tool = registry.get(toolUse.name());
-        if (tool == null) throw new UnknownToolException(toolUse.name());
-        var envelope = tool.execute(toolUse.input(), ctx);
+        var envelope = routeToEnvelope(toolUse, ctx);
         return new ContentBlock.ToolResult(toolUse.id(), envelope.content());
-    }
-
-    private ContentBlock.ToolResult routeMcp(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
-        throw new UnsupportedOperationException("MCP tools not implemented (s19)");
     }
 
     public ToolResultEnvelope routeToEnvelope(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
@@ -36,6 +26,7 @@ public class ToolRouter {
     }
 
     public boolean isConcurrencySafe(String toolName) {
+        Objects.requireNonNull(toolName, "toolName must not be null");
         if (toolName.startsWith("mcp__")) return false;
         var tool = registry.get(toolName);
         return tool != null && tool.isConcurrencySafe();

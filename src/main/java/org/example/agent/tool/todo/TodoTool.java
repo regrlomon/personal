@@ -38,8 +38,6 @@ public class TodoTool implements Tool {
     @Override
     public ToolDefinition definition() { return DEFINITION; }
 
-    @Override
-    public boolean isConcurrencySafe() { return false; }
 
     @Override
     @SuppressWarnings("unchecked")

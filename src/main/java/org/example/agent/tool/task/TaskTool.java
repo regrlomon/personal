@@ -24,13 +24,11 @@ public class TaskTool implements Tool {
             )
     );
 
-    private final ModelClient modelClient;
-    private final ToolRegistry subRegistry;
+    private final QueryEngine subEngine;
     private final int maxTurns;
 
     public TaskTool(ModelClient modelClient, ToolRegistry subRegistry, int maxTurns) {
-        this.modelClient = modelClient;
-        this.subRegistry = subRegistry;
+        this.subEngine = new QueryEngine(modelClient, subRegistry);
         this.maxTurns = maxTurns;
     }
 
@@ -39,9 +37,9 @@ public class TaskTool implements Tool {
 
     @Override
     public ToolResultEnvelope execute(Map<String, Object> input, ToolUseContext ctx) {
-        var prompt = (String) input.get("prompt");
-        if (prompt == null || prompt.isBlank()) {
-            return ToolResultEnvelope.error("prompt is required");
+        var raw = input.get("prompt");
+        if (!(raw instanceof String prompt) || prompt.isBlank()) {
+            return ToolResultEnvelope.error("prompt must be a non-blank string");
         }
 
         var params = new QueryParams(
@@ -50,11 +48,13 @@ public class TaskTool implements Tool {
                 maxTurns
         );
 
-        var result = new QueryEngine(modelClient, subRegistry).run(params);
+        var result = subEngine.run(params);
 
         return switch (result) {
-            case QueryResult.Failed f ->
-                    ToolResultEnvelope.error(f.cause().getMessage());
+            case QueryResult.Failed f -> {
+                var msg = f.cause().getMessage();
+                yield ToolResultEnvelope.error(msg != null ? msg : f.cause().getClass().getSimpleName());
+            }
             case QueryResult.Success s -> {
                 var summary = s.messages().stream()
                         .filter(m -> m.role() == Role.ASSISTANT)

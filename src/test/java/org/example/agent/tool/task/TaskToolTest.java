@@ -81,8 +81,8 @@ class TaskToolTest {
     }
 
     @Test
-    void subagent_cannot_call_task_recursively() {
-        // subRegistry is empty — calling "task" from within returns an error result, not infinite loop
+    void execute_returns_final_message_when_subagent_calls_unknown_tool() {
+        // subRegistry is empty — subagent gets an error for the unknown tool, then continues to END_TURN
         var responses = new ModelResponse[]{
                 new ModelResponse(
                         List.of(new ContentBlock.ToolUse("id-1", "task", Map.of("prompt", "nested"))),

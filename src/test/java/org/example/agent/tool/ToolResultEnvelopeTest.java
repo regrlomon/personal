@@ -22,4 +22,16 @@ class ToolResultEnvelopeTest {
         assertTrue(e.isError());
         assertTrue(e.attachments().isEmpty());
     }
+
+    @Test
+    void success_has_empty_context_modifier() {
+        var e = ToolResultEnvelope.success("hello");
+        assertTrue(e.contextModifier().isEmpty());
+    }
+
+    @Test
+    void error_has_empty_context_modifier() {
+        var e = ToolResultEnvelope.error("boom");
+        assertTrue(e.contextModifier().isEmpty());
+    }
 }

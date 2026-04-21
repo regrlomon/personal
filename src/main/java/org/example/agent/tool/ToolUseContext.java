@@ -34,4 +34,9 @@ public class ToolUseContext {
     public Map<String, Object> appState()          { return appState; }
     public List<String>        notifications()     { return notifications; }
     public String              cwd()               { return cwd; }
+
+    public ToolUseContext withNotifications(List<String> notifications) {
+        return new ToolUseContext(permissionContext, mcpClients, appState,
+                List.copyOf(notifications), cwd);
+    }
 }

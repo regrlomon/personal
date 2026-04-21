@@ -25,4 +25,19 @@ public class ToolRouter {
     private ContentBlock.ToolResult routeMcp(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
         throw new UnsupportedOperationException("MCP tools not implemented (s19)");
     }
+
+    public ToolResultEnvelope routeToEnvelope(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
+        if (toolUse.name().startsWith("mcp__")) {
+            throw new UnsupportedOperationException("MCP tools not implemented (s19)");
+        }
+        var tool = registry.get(toolUse.name());
+        if (tool == null) throw new UnknownToolException(toolUse.name());
+        return tool.execute(toolUse.input(), ctx);
+    }
+
+    public boolean isConcurrencySafe(String toolName) {
+        if (toolName.startsWith("mcp__")) return false;
+        var tool = registry.get(toolName);
+        return tool != null && tool.isConcurrencySafe();
+    }
 }

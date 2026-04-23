@@ -92,4 +92,27 @@ class MemoryStoreTest {
         assertEquals(1, loaded.size());
         assertEquals("good", loaded.get(0).name());
     }
+
+    @Test
+    void delete_removes_file_and_returns_true() throws IOException {
+        store.save(new MemoryEntry("to_delete", "Will be removed", "user", "content"));
+        assertTrue(store.delete("to_delete"));
+        assertEquals(0, store.loadAll().size());
+    }
+
+    @Test
+    void delete_returns_false_when_not_found() throws IOException {
+        assertFalse(store.delete("nonexistent"));
+    }
+
+    @Test
+    void delete_rebuilds_index_after_removal() throws IOException {
+        store.save(new MemoryEntry("keep", "Keep this", "project", "keep content"));
+        store.save(new MemoryEntry("remove", "Remove this", "project", "remove content"));
+        store.delete("remove");
+
+        var index = Files.readString(memoryDir.resolve("MEMORY.md"));
+        assertTrue(index.contains("keep"));
+        assertFalse(index.contains("remove"));
+    }
 }

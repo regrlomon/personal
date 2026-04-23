@@ -1,5 +1,6 @@
 package org.example.agent.tool;
 
+import org.example.agent.hook.HookRunner;
 import org.example.agent.permission.PermissionChecker;
 import org.example.agent.permission.UserConfirmation;
 import org.example.agent.tool.todo.PlanningState;
@@ -18,6 +19,7 @@ public class ToolUseContext {
     private final PlanningState planningState;
     private final PermissionChecker permissionChecker;
     private final UserConfirmation userConfirmation;
+    private final HookRunner hookRunner;
 
     private ToolUseContext(Map<String, Object> permissionContext,
                            Map<String, Object> mcpClients,
@@ -26,7 +28,8 @@ public class ToolUseContext {
                            String cwd,
                            PlanningState planningState,
                            PermissionChecker permissionChecker,
-                           UserConfirmation userConfirmation) {
+                           UserConfirmation userConfirmation,
+                           HookRunner hookRunner) {
         this.permissionContext = permissionContext;
         this.mcpClients = mcpClients;
         this.appState = appState;
@@ -35,12 +38,13 @@ public class ToolUseContext {
         this.planningState = planningState;
         this.permissionChecker = permissionChecker;
         this.userConfirmation = userConfirmation;
+        this.hookRunner = hookRunner;
     }
 
     public static ToolUseContext defaults(String cwd) {
         Objects.requireNonNull(cwd, "cwd must not be null");
         return new ToolUseContext(Map.of(), Map.of(), Map.of(), List.of(), cwd,
-                new PlanningState(), null, null);
+                new PlanningState(), null, null, null);
     }
 
     public Map<String, Object> permissionContext() { return permissionContext; }
@@ -55,13 +59,21 @@ public class ToolUseContext {
     public ToolUseContext withNotifications(List<String> notifications) {
         Objects.requireNonNull(notifications, "notifications must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
-                List.copyOf(notifications), cwd, planningState, permissionChecker, userConfirmation);
+                List.copyOf(notifications), cwd, planningState, permissionChecker, userConfirmation, hookRunner);
     }
 
     public ToolUseContext withPermissions(PermissionChecker checker, UserConfirmation confirmation) {
         Objects.requireNonNull(checker, "checker must not be null");
         Objects.requireNonNull(confirmation, "confirmation must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
-                notifications, cwd, planningState, checker, confirmation);
+                notifications, cwd, planningState, checker, confirmation, hookRunner);
     }
+
+    public ToolUseContext withHookRunner(HookRunner hookRunner) {
+        Objects.requireNonNull(hookRunner, "hookRunner must not be null");
+        return new ToolUseContext(permissionContext, mcpClients, appState,
+                notifications, cwd, planningState, permissionChecker, userConfirmation, hookRunner);
+    }
+
+    public HookRunner hookRunner() { return hookRunner; }
 }

@@ -1,5 +1,6 @@
 package org.example.agent.core;
 
+import org.example.agent.core.ContentBlock;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -90,5 +91,25 @@ class QueryStateTest {
         var params = new QueryParams(List.of(Message.user("q")), "sys", null, 512, null);
         var state = QueryState.from(params);
         assertEquals(512, state.maxOutputTokensOverride().orElseThrow());
+    }
+
+    @Test
+    void replace_messages_swaps_list() {
+        var state = QueryState.from(minimalParams());
+        var newMessages = List.of(Message.user("compacted"));
+
+        state.replaceMessages(newMessages);
+
+        assertEquals(1, state.messages().size());
+        assertEquals("compacted",
+                ((ContentBlock.Text) state.messages().get(0).content().get(0)).text());
+    }
+
+    @Test
+    void replace_messages_result_is_still_unmodifiable() {
+        var state = QueryState.from(minimalParams());
+        state.replaceMessages(List.of(Message.user("new")));
+        assertThrows(UnsupportedOperationException.class,
+                () -> state.messages().add(Message.user("hack")));
     }
 }

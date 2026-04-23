@@ -72,6 +72,11 @@ public class QueryState {
         hasAttemptedCompact = true;
     }
 
+    public void replaceMessages(List<Message> newMessages) {
+        messages.clear();
+        messages.addAll(newMessages);
+    }
+
     public void setStopHookActive(boolean active) {
         stopHookActive = active;
     }

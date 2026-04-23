@@ -69,10 +69,10 @@ public class ToolUseContext {
                 notifications, cwd, planningState, checker, confirmation, hookRunner);
     }
 
-    public ToolUseContext withHookRunner(HookRunner hookRunner) {
-        Objects.requireNonNull(hookRunner, "hookRunner must not be null");
+    public ToolUseContext withHookRunner(HookRunner runner) {
+        Objects.requireNonNull(runner, "hookRunner must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
-                notifications, cwd, planningState, permissionChecker, userConfirmation, hookRunner);
+                notifications, cwd, planningState, permissionChecker, userConfirmation, runner);
     }
 
     public HookRunner hookRunner() { return hookRunner; }

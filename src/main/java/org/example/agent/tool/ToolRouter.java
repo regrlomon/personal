@@ -1,7 +1,9 @@
 package org.example.agent.tool;
 
-import java.util.Objects;
 import org.example.agent.core.ContentBlock;
+import org.example.agent.permission.PermissionBehavior;
+
+import java.util.Objects;
 
 public class ToolRouter {
 
@@ -20,6 +22,23 @@ public class ToolRouter {
         if (toolUse.name().startsWith("mcp__")) {
             throw new UnsupportedOperationException("MCP tools not implemented (s19)");
         }
+
+        var checker = ctx.permissionChecker();
+        if (checker != null) {
+            var decision = checker.check(toolUse.name(), toolUse.input());
+            if (decision.behavior() == PermissionBehavior.DENY) {
+                return ToolResultEnvelope.error("Permission denied: " + decision.reason());
+            }
+            if (decision.behavior() == PermissionBehavior.ASK) {
+                boolean approved = ctx.userConfirmation().confirm(
+                        toolUse.name(), toolUse.input(), decision.reason());
+                if (!approved) {
+                    return ToolResultEnvelope.error("Permission denied by user");
+                }
+            }
+            // ALLOW falls through to execution
+        }
+
         var tool = registry.get(toolUse.name());
         if (tool == null) throw new UnknownToolException(toolUse.name());
         return tool.execute(toolUse.input(), ctx);

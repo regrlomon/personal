@@ -3,7 +3,6 @@ package org.example.agent.engine;
 import org.example.agent.core.ContentBlock;
 import org.example.agent.core.Message;
 import org.example.agent.core.Role;
-import org.example.agent.tool.todo.PlanItem;
 import org.example.agent.tool.todo.PlanStatus;
 import org.example.agent.tool.todo.PlanningState;
 

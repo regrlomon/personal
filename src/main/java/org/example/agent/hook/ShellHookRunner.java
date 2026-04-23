@@ -54,11 +54,12 @@ public class ShellHookRunner implements HookRunner {
             boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
+                stdoutFuture.cancel(true);
                 System.err.println("[HookRunner] timed out: " + command);
                 return HookResult.ok();
             }
 
-            String stdout = stdoutFuture.get(2, TimeUnit.SECONDS).strip();
+            String stdout = stdoutFuture.join().strip();
             return switch (process.exitValue()) {
                 case 1  -> HookResult.block(stdout);
                 case 2  -> HookResult.inject(stdout);

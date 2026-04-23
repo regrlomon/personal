@@ -58,6 +58,12 @@ public class QueryEngine {
         this.compactor = compactor;
         var router = new ToolRouter(toolRegistry);
         this.runtime = new ToolExecutionRuntime(router, executor);
+        toolRegistry.register(new CompactTool(
+                compactor,
+                () -> List.copyOf(currentState.messages()),
+                msgs -> currentState.replaceMessages(msgs),
+                () -> currentCtx.planningState()
+        ));
     }
 
     private static ContextCompactor defaultCompactor() {

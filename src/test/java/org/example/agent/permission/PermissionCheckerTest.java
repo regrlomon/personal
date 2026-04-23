@@ -23,4 +23,25 @@ class PermissionCheckerTest {
         assertNotNull(PermissionMode.PLAN);
         assertNotNull(PermissionMode.AUTO);
     }
+
+    @Test
+    void permission_rule_stores_fields() {
+        var rule = new PermissionRule("bash", PermissionBehavior.DENY, "sudo *");
+        assertEquals("bash", rule.tool());
+        assertEquals(PermissionBehavior.DENY, rule.behavior());
+        assertEquals("sudo *", rule.content());
+    }
+
+    @Test
+    void permission_rule_allows_null_content() {
+        var rule = new PermissionRule("read_file", PermissionBehavior.ALLOW, null);
+        assertNull(rule.content());
+    }
+
+    @Test
+    void permission_decision_stores_behavior_and_reason() {
+        var decision = new PermissionDecision(PermissionBehavior.ALLOW, "matched allow rule");
+        assertEquals(PermissionBehavior.ALLOW, decision.behavior());
+        assertEquals("matched allow rule", decision.reason());
+    }
 }

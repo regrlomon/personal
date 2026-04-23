@@ -6,6 +6,7 @@ import org.example.agent.model.ModelRequest;
 import org.example.agent.model.ModelResponse;
 import org.example.agent.model.StopReason;
 import org.example.agent.tool.*;
+import org.example.agent.tool.skill.SkillRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,14 +22,24 @@ public class QueryEngine {
     private final ModelClient modelClient;
     private final ToolRegistry toolRegistry;
     private final ToolExecutionRuntime runtime;
+    private final SkillRegistry skillRegistry;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
-        this(modelClient, toolRegistry, ForkJoinPool.commonPool());
+        this(modelClient, toolRegistry, null, ForkJoinPool.commonPool());
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, ExecutorService executor) {
+        this(modelClient, toolRegistry, null, executor);
+    }
+
+    public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, SkillRegistry skillRegistry) {
+        this(modelClient, toolRegistry, skillRegistry, ForkJoinPool.commonPool());
+    }
+
+    private QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, SkillRegistry skillRegistry, ExecutorService executor) {
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
+        this.skillRegistry = skillRegistry;
         var router = new ToolRouter(toolRegistry);
         this.runtime = new ToolExecutionRuntime(router, executor);
     }
@@ -101,10 +112,18 @@ public class QueryEngine {
                 .orElse(params.maxOutputTokensOverride());
         return new ModelRequest(
                 MessageNormalizer.normalize(state.messages()),
-                params.systemPrompt(),
+                augmentSystemPrompt(params.systemPrompt()),
                 toolRegistry.definitions(),
                 maxTokens
         );
+    }
+
+    private String augmentSystemPrompt(String base) {
+        if (skillRegistry == null) return base;
+        var skillSection = skillRegistry.describeAvailable();
+        if (skillSection.isEmpty()) return base;
+        if (base == null || base.isEmpty()) return skillSection;
+        return skillSection + "\n\n" + base;
     }
 
     private Message buildToolResultMessage(List<ContentBlock.ToolResult> results, boolean prependReminder) {

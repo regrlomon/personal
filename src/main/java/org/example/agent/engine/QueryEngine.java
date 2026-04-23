@@ -5,6 +5,9 @@ import org.example.agent.model.ModelClient;
 import org.example.agent.model.ModelRequest;
 import org.example.agent.model.ModelResponse;
 import org.example.agent.model.StopReason;
+import org.example.agent.hook.HookEvent;
+import org.example.agent.hook.HookEventName;
+import org.example.agent.hook.HookRunner;
 import org.example.agent.permission.PermissionChecker;
 import org.example.agent.permission.UserConfirmation;
 import org.example.agent.tool.*;
@@ -29,6 +32,7 @@ public class QueryEngine {
     private final ContextCompactor compactor;
     private final PermissionChecker permissionChecker;
     private final UserConfirmation   userConfirmation;
+    private final HookRunner hookRunner;
 
     // Promoted to instance fields so CompactTool lambdas (wired in Task 6) can read live values.
     // Only valid during an active run() call.
@@ -36,39 +40,46 @@ public class QueryEngine {
     private ToolUseContext currentCtx;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool(), null, null);
+        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), executor, null, null);
+        this(modelClient, toolRegistry, null, defaultCompactor(), executor, null, null, null);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                        SkillRegistry skillRegistry) {
-        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool(), null, null);
+        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                 ContextCompactor compactor, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, compactor, executor, null, null);
+        this(modelClient, toolRegistry, null, compactor, executor, null, null, null);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                        PermissionChecker permissionChecker, UserConfirmation userConfirmation) {
         this(modelClient, toolRegistry, null, defaultCompactor(),
-                ForkJoinPool.commonPool(), permissionChecker, userConfirmation);
+                ForkJoinPool.commonPool(), permissionChecker, userConfirmation, null);
+    }
+
+    public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, HookRunner hookRunner) {
+        this(modelClient, toolRegistry, null, defaultCompactor(),
+                ForkJoinPool.commonPool(), null, null, hookRunner);
     }
 
     private QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                         SkillRegistry skillRegistry, ContextCompactor compactor,
                         ExecutorService executor,
-                        PermissionChecker permissionChecker, UserConfirmation userConfirmation) {
+                        PermissionChecker permissionChecker, UserConfirmation userConfirmation,
+                        HookRunner hookRunner) {
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
         this.skillRegistry = skillRegistry;
         this.compactor = compactor;
         this.permissionChecker = permissionChecker;
         this.userConfirmation = userConfirmation;
+        this.hookRunner = hookRunner;
         var router = new ToolRouter(toolRegistry);
         this.runtime = new ToolExecutionRuntime(router, executor);
         toolRegistry.register(new CompactTool(
@@ -88,9 +99,16 @@ public class QueryEngine {
     public QueryResult run(QueryParams params) {
         currentState = QueryState.from(params);
         var baseCtx = ToolUseContext.defaults(System.getProperty("user.dir"));
-        currentCtx = (permissionChecker != null)
-                ? baseCtx.withPermissions(permissionChecker, userConfirmation)
-                : baseCtx;
+        var ctx = baseCtx;
+        if (permissionChecker != null) ctx = ctx.withPermissions(permissionChecker, userConfirmation);
+        if (hookRunner != null) ctx = ctx.withHookRunner(hookRunner);
+        currentCtx = ctx;
+
+        // SessionStart hook
+        if (hookRunner != null) {
+            hookRunner.run(new HookEvent(HookEventName.SESSION_START,
+                    java.util.Map.of("system_prompt", String.valueOf(params.systemPrompt()))));
+        }
 
         while (true) {
             // Layer 2: trim old tool results before every model call
@@ -118,6 +136,9 @@ public class QueryEngine {
                 currentState.appendMessage(
                         buildToolResultMessage(execResult.toolResults(),
                                 currentCtx.planningState().needsReminder()));
+                for (String msg : execResult.injectionMessages()) {
+                    currentState.appendMessage(Message.user(msg));
+                }
                 currentState.setLastTransition(
                         new TransitionReason.ToolResultContinuation(execResult.toolResults()));
                 currentState.incrementTurn();

@@ -1,9 +1,12 @@
 package org.example.agent.tool;
 
 import org.example.agent.core.ContentBlock;
+import org.example.agent.hook.HookEvent;
+import org.example.agent.hook.HookEventName;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -22,20 +25,22 @@ public class ToolExecutionRuntime {
         Objects.requireNonNull(toolUses, "toolUses must not be null");
         var batches = partition(toolUses);
         var allResults = new ArrayList<ContentBlock.ToolResult>();
+        var allInjections = new ArrayList<String>();
         var currentCtx = ctx;
 
         for (var batch : batches) {
-            var envelopes = executeBatch(batch, currentCtx);
-            for (int i = 0; i < envelopes.size(); i++) {
-                var envelope = envelopes.get(i);
+            var routeResults = executeBatch(batch, currentCtx);
+            for (int i = 0; i < routeResults.size(); i++) {
+                var rr = routeResults.get(i);
                 var toolUse = batch.toolUses().get(i);
-                allResults.add(new ContentBlock.ToolResult(toolUse.id(), envelope.content()));
-                if (envelope.contextModifier().isPresent()) {
-                    currentCtx = envelope.contextModifier().get().apply(currentCtx);
+                allResults.add(new ContentBlock.ToolResult(toolUse.id(), rr.envelope().content()));
+                allInjections.addAll(rr.injectionMessages());
+                if (rr.envelope().contextModifier().isPresent()) {
+                    currentCtx = rr.envelope().contextModifier().get().apply(currentCtx);
                 }
             }
         }
-        return new ExecutionResult(List.copyOf(allResults), currentCtx);
+        return new ExecutionResult(List.copyOf(allResults), currentCtx, List.copyOf(allInjections));
     }
 
     private List<ToolExecutionBatch> partition(List<ContentBlock.ToolUse> toolUses) {
@@ -59,14 +64,12 @@ public class ToolExecutionRuntime {
         return batches;
     }
 
-    private List<ToolResultEnvelope> executeBatch(ToolExecutionBatch batch, ToolUseContext ctx) {
-        if (batch.concurrencySafe()) {
-            return executeConcurrently(batch.toolUses(), ctx);
-        }
+    private List<RouteResult> executeBatch(ToolExecutionBatch batch, ToolUseContext ctx) {
+        if (batch.concurrencySafe()) return executeConcurrently(batch.toolUses(), ctx);
         return executeSerially(batch.toolUses(), ctx);
     }
 
-    private List<ToolResultEnvelope> executeConcurrently(List<ContentBlock.ToolUse> toolUses, ToolUseContext ctx) {
+    private List<RouteResult> executeConcurrently(List<ContentBlock.ToolUse> toolUses, ToolUseContext ctx) {
         var futures = toolUses.stream()
                 .map(tu -> CompletableFuture.supplyAsync(() -> routeSafely(tu, ctx), executor))
                 .toList();
@@ -74,17 +77,44 @@ public class ToolExecutionRuntime {
         return futures.stream().map(CompletableFuture::join).toList();
     }
 
-    private List<ToolResultEnvelope> executeSerially(List<ContentBlock.ToolUse> toolUses, ToolUseContext ctx) {
+    private List<RouteResult> executeSerially(List<ContentBlock.ToolUse> toolUses, ToolUseContext ctx) {
         return toolUses.stream().map(tu -> routeSafely(tu, ctx)).toList();
     }
 
-    private ToolResultEnvelope routeSafely(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
-        try {
-            return router.routeToEnvelope(toolUse, ctx);
-        } catch (UnknownToolException e) {
-            return ToolResultEnvelope.error(e.getMessage());
-        } catch (UnsupportedOperationException e) {
-            return ToolResultEnvelope.error("MCP tools not yet supported");
+    private RouteResult routeSafely(ContentBlock.ToolUse toolUse, ToolUseContext ctx) {
+        var hookRunner = ctx.hookRunner();
+        var injections = new ArrayList<String>();
+
+        // PreToolUse hook
+        if (hookRunner != null) {
+            var pre = hookRunner.run(new HookEvent(HookEventName.PRE_TOOL_USE,
+                    Map.of("tool_name", toolUse.name(), "input", toolUse.input())));
+            if (pre.exitCode() == 1) {
+                return new RouteResult(ToolResultEnvelope.error(pre.message()), List.of());
+            }
+            if (pre.exitCode() == 2) injections.add(pre.message());
         }
+
+        // Execute tool
+        ToolResultEnvelope envelope;
+        try {
+            envelope = router.routeToEnvelope(toolUse, ctx);
+        } catch (UnknownToolException e) {
+            envelope = ToolResultEnvelope.error(e.getMessage());
+        } catch (UnsupportedOperationException e) {
+            envelope = ToolResultEnvelope.error("MCP tools not yet supported");
+        }
+
+        // PostToolUse hook
+        if (hookRunner != null) {
+            var post = hookRunner.run(new HookEvent(HookEventName.POST_TOOL_USE,
+                    Map.copyOf(Map.of("tool_name", toolUse.name(), "input", toolUse.input(),
+                            "output", envelope.content()))));
+            if (post.exitCode() == 2) injections.add(post.message());
+        }
+
+        return new RouteResult(envelope, List.copyOf(injections));
     }
+
+    private record RouteResult(ToolResultEnvelope envelope, List<String> injectionMessages) {}
 }

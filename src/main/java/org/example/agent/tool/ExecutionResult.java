@@ -5,5 +5,6 @@ import java.util.List;
 
 public record ExecutionResult(
         List<ContentBlock.ToolResult> toolResults,
-        ToolUseContext updatedContext
+        ToolUseContext updatedContext,
+        List<String> injectionMessages
 ) {}

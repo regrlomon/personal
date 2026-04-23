@@ -5,6 +5,8 @@ import org.example.agent.model.ModelClient;
 import org.example.agent.model.ModelRequest;
 import org.example.agent.model.ModelResponse;
 import org.example.agent.model.StopReason;
+import org.example.agent.permission.PermissionChecker;
+import org.example.agent.permission.UserConfirmation;
 import org.example.agent.tool.*;
 import org.example.agent.tool.skill.SkillRegistry;
 
@@ -25,6 +27,8 @@ public class QueryEngine {
     private final ToolExecutionRuntime runtime;
     private final SkillRegistry skillRegistry;
     private final ContextCompactor compactor;
+    private final PermissionChecker permissionChecker;
+    private final UserConfirmation   userConfirmation;
 
     // Promoted to instance fields so CompactTool lambdas (wired in Task 6) can read live values.
     // Only valid during an active run() call.
@@ -32,30 +36,39 @@ public class QueryEngine {
     private ToolUseContext currentCtx;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool());
+        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool(), null, null);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), executor);
+        this(modelClient, toolRegistry, null, defaultCompactor(), executor, null, null);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                        SkillRegistry skillRegistry) {
-        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool());
+        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool(), null, null);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                 ContextCompactor compactor, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, compactor, executor);
+        this(modelClient, toolRegistry, null, compactor, executor, null, null);
+    }
+
+    public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
+                       PermissionChecker permissionChecker, UserConfirmation userConfirmation) {
+        this(modelClient, toolRegistry, null, defaultCompactor(),
+                ForkJoinPool.commonPool(), permissionChecker, userConfirmation);
     }
 
     private QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                         SkillRegistry skillRegistry, ContextCompactor compactor,
-                        ExecutorService executor) {
+                        ExecutorService executor,
+                        PermissionChecker permissionChecker, UserConfirmation userConfirmation) {
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
         this.skillRegistry = skillRegistry;
         this.compactor = compactor;
+        this.permissionChecker = permissionChecker;
+        this.userConfirmation = userConfirmation;
         var router = new ToolRouter(toolRegistry);
         this.runtime = new ToolExecutionRuntime(router, executor);
         toolRegistry.register(new CompactTool(
@@ -74,7 +87,10 @@ public class QueryEngine {
 
     public QueryResult run(QueryParams params) {
         currentState = QueryState.from(params);
-        currentCtx   = ToolUseContext.defaults(System.getProperty("user.dir"));
+        var baseCtx = ToolUseContext.defaults(System.getProperty("user.dir"));
+        currentCtx = (permissionChecker != null)
+                ? baseCtx.withPermissions(permissionChecker, userConfirmation)
+                : baseCtx;
 
         while (true) {
             // Layer 2: trim old tool results before every model call

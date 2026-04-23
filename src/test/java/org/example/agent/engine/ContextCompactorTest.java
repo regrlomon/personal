@@ -52,4 +52,80 @@ class ContextCompactorTest {
         var preview = content.substring(0, 2000);
         assertTrue(result.contains(preview));
     }
+
+    // ── Layer 2: microCompact ────────────────────────────────────────
+
+    @Test
+    void microCompact_fewerThanThreshold_returnsUnchanged(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var messages = List.of(
+                Message.user("task"),
+                toolResultMsg("id1", "r1"),
+                toolResultMsg("id2", "r2"),
+                toolResultMsg("id3", "r3")  // exactly MICRO_KEEP_RECENT
+        );
+
+        var result = compactor.microCompact(messages);
+
+        assertEquals("r1", toolResultContent(result, 1));
+        assertEquals("r3", toolResultContent(result, 3));
+    }
+
+    @Test
+    void microCompact_olderResultsReplacedWithPlaceholder(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var messages = List.of(
+                Message.user("task"),
+                toolResultMsg("id1", "old1"),  // to be compacted
+                toolResultMsg("id2", "old2"),  // to be compacted
+                toolResultMsg("id3", "r3"),    // keep
+                toolResultMsg("id4", "r4"),    // keep
+                toolResultMsg("id5", "r5")     // keep
+        );
+
+        var result = compactor.microCompact(messages);
+
+        assertEquals(ContextCompactor.PLACEHOLDER, toolResultContent(result, 1));
+        assertEquals(ContextCompactor.PLACEHOLDER, toolResultContent(result, 2));
+        assertEquals("r3", toolResultContent(result, 3));
+        assertEquals("r5", toolResultContent(result, 5));
+    }
+
+    @Test
+    void microCompact_nonToolMessages_leftUntouched(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var msg = Message.user("plain text");
+
+        var result = compactor.microCompact(List.of(msg));
+
+        assertEquals(1, result.size());
+        assertEquals(msg, result.get(0));
+    }
+
+    @Test
+    void microCompact_returnsNewList_doesNotMutateOriginal(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var original = new java.util.ArrayList<>(List.of(
+                Message.user("task"),
+                toolResultMsg("a", "val"),
+                toolResultMsg("b", "val"),
+                toolResultMsg("c", "val"),
+                toolResultMsg("d", "val")  // 4 tool-result messages > MICRO_KEEP_RECENT
+        ));
+
+        compactor.microCompact(original);
+
+        // original unchanged
+        assertEquals("val", toolResultContent(original, 1));
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────
+
+    private static Message toolResultMsg(String id, String content) {
+        return new Message(Role.USER, List.of(new ContentBlock.ToolResult(id, content)));
+    }
+
+    private static String toolResultContent(List<Message> messages, int idx) {
+        return ((ContentBlock.ToolResult) messages.get(idx).content().get(0)).content();
+    }
 }

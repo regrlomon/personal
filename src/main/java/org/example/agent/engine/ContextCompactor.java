@@ -44,8 +44,37 @@ public class ContextCompactor {
     }
 
     public List<Message> microCompact(List<Message> messages) {
-        // placeholder — implemented in Task 3
-        return List.copyOf(messages);
+        var toolResultIndices = new ArrayList<Integer>();
+        for (int i = 0; i < messages.size(); i++) {
+            var msg = messages.get(i);
+            if (msg.role() == Role.USER
+                    && msg.content().stream().anyMatch(b -> b instanceof ContentBlock.ToolResult)) {
+                toolResultIndices.add(i);
+            }
+        }
+
+        if (toolResultIndices.size() <= MICRO_KEEP_RECENT) {
+            return List.copyOf(messages);
+        }
+
+        var toCompact = new HashSet<>(
+                toolResultIndices.subList(0, toolResultIndices.size() - MICRO_KEEP_RECENT));
+
+        var result = new ArrayList<Message>(messages.size());
+        for (int i = 0; i < messages.size(); i++) {
+            if (toCompact.contains(i)) {
+                var msg = messages.get(i);
+                var newBlocks = msg.content().stream()
+                        .map(b -> b instanceof ContentBlock.ToolResult tr
+                                ? new ContentBlock.ToolResult(tr.toolUseId(), PLACEHOLDER)
+                                : b)
+                        .toList();
+                result.add(new Message(msg.role(), newBlocks));
+            } else {
+                result.add(messages.get(i));
+            }
+        }
+        return List.copyOf(result);
     }
 
     public List<Message> fullCompact(List<Message> messages, PlanningState plan) {

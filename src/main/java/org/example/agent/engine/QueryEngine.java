@@ -8,6 +8,7 @@ import org.example.agent.model.StopReason;
 import org.example.agent.tool.*;
 import org.example.agent.tool.skill.SkillRegistry;
 
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -23,36 +24,61 @@ public class QueryEngine {
     private final ToolRegistry toolRegistry;
     private final ToolExecutionRuntime runtime;
     private final SkillRegistry skillRegistry;
+    private final ContextCompactor compactor;
+
+    // Promoted to instance fields so CompactTool lambdas (wired in Task 6) can read live values.
+    // Only valid during an active run() call.
+    private QueryState     currentState;
+    private ToolUseContext currentCtx;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
-        this(modelClient, toolRegistry, null, ForkJoinPool.commonPool());
+        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool());
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, executor);
+        this(modelClient, toolRegistry, null, defaultCompactor(), executor);
     }
 
-    public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, SkillRegistry skillRegistry) {
-        this(modelClient, toolRegistry, skillRegistry, ForkJoinPool.commonPool());
+    public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
+                       SkillRegistry skillRegistry) {
+        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool());
     }
 
-    private QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, SkillRegistry skillRegistry, ExecutorService executor) {
+    QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
+                ContextCompactor compactor, ExecutorService executor) {
+        this(modelClient, toolRegistry, null, compactor, executor);
+    }
+
+    private QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
+                        SkillRegistry skillRegistry, ContextCompactor compactor,
+                        ExecutorService executor) {
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
         this.skillRegistry = skillRegistry;
+        this.compactor = compactor;
         var router = new ToolRouter(toolRegistry);
         this.runtime = new ToolExecutionRuntime(router, executor);
     }
 
+    private static ContextCompactor defaultCompactor() {
+        var dir = Paths.get(System.getProperty("user.dir"),
+                ".task_outputs", "tool-results");
+        return new ContextCompactor(dir);
+    }
+
     public QueryResult run(QueryParams params) {
-        var state = QueryState.from(params);
-        var ctx = ToolUseContext.defaults(System.getProperty("user.dir"));
+        currentState = QueryState.from(params);
+        currentCtx   = ToolUseContext.defaults(System.getProperty("user.dir"));
+
         while (true) {
-            // turnCount starts at 1; > maxTurns allows exactly maxTurns model calls.
-            if (params.maxTurns() != null && state.turnCount() > params.maxTurns()) {
-                return new QueryResult.Success(state.messages(), state.turnCount());
+            // Layer 2: trim old tool results before every model call
+            currentState.replaceMessages(compactor.microCompact(currentState.messages()));
+
+            if (params.maxTurns() != null && currentState.turnCount() > params.maxTurns()) {
+                return new QueryResult.Success(currentState.messages(), currentState.turnCount());
             }
-            var response = modelClient.call(buildRequest(state, params));
+
+            var response = modelClient.call(buildRequest(currentState, params));
 
             if (response.stopReason() == StopReason.TOOL_USE) {
                 var toolUses = response.content().stream()
@@ -60,23 +86,26 @@ public class QueryEngine {
                         .map(b -> (ContentBlock.ToolUse) b)
                         .toList();
                 if (toolUses.isEmpty()) {
-                    state.appendMessage(new Message(Role.ASSISTANT, response.content()));
-                    return new QueryResult.Success(state.messages(), state.turnCount());
+                    currentState.appendMessage(new Message(Role.ASSISTANT, response.content()));
+                    return new QueryResult.Success(currentState.messages(), currentState.turnCount());
                 }
-                ctx.planningState().tickRound();
-                var execResult = runtime.execute(toolUses, ctx);
-                ctx = execResult.updatedContext();
-                state.appendMessage(new Message(Role.ASSISTANT, response.content()));
-                state.appendMessage(buildToolResultMessage(execResult.toolResults(), ctx.planningState().needsReminder()));
-                state.setLastTransition(new TransitionReason.ToolResultContinuation(execResult.toolResults()));
-                state.incrementTurn();
+                currentCtx.planningState().tickRound();
+                var execResult = runtime.execute(toolUses, currentCtx);
+                currentCtx = execResult.updatedContext();
+                currentState.appendMessage(new Message(Role.ASSISTANT, response.content()));
+                currentState.appendMessage(
+                        buildToolResultMessage(execResult.toolResults(),
+                                currentCtx.planningState().needsReminder()));
+                currentState.setLastTransition(
+                        new TransitionReason.ToolResultContinuation(execResult.toolResults()));
+                currentState.incrementTurn();
             } else {
-                var transition = decide(state, response);
+                var transition = decide(currentState, response);
                 if (transition == null) {
-                    state.appendMessage(new Message(Role.ASSISTANT, response.content()));
-                    return new QueryResult.Success(state.messages(), state.turnCount());
+                    currentState.appendMessage(new Message(Role.ASSISTANT, response.content()));
+                    return new QueryResult.Success(currentState.messages(), currentState.turnCount());
                 }
-                advance(state, transition, response);
+                advance(currentState, transition, response);
             }
         }
     }
@@ -85,7 +114,9 @@ public class QueryEngine {
         return switch (response.stopReason()) {
             case END_TURN -> null;
             case TOOL_USE -> throw new IllegalStateException("TOOL_USE handled in run()");
-            case MAX_TOKENS -> new TransitionReason.MaxTokensRecovery(state.continuationCount() + 1);
+            case MAX_TOKENS -> state.hasAttemptedCompact()
+                    ? new TransitionReason.MaxTokensRecovery(state.continuationCount() + 1)
+                    : new TransitionReason.CompactRetry();
             case STOP_SEQUENCE -> null;
         };
     }
@@ -99,11 +130,19 @@ public class QueryEngine {
                 state.setLastTransition(t);
                 state.incrementTurn();
             }
-            case TransitionReason.CompactRetry c -> { /* s06 extension */ }
-            case TransitionReason.TransportRetry r -> { /* s11 extension */ }
+            case TransitionReason.CompactRetry c -> {
+                state.appendMessage(new Message(Role.ASSISTANT, response.content()));
+                var compacted = compactor.fullCompact(state.messages(), currentCtx.planningState());
+                state.replaceMessages(compacted);
+                state.markCompactAttempted();
+                state.setLastTransition(c);
+                // intentionally no incrementTurn — retry immediately
+            }
+            case TransitionReason.TransportRetry r  -> { /* s11 extension */ }
             case TransitionReason.StopHookContinuation h -> { /* s08 extension */ }
-            case TransitionReason.BudgetContinuation b -> { /* budget extension */ }
-            case TransitionReason.ToolResultContinuation c -> throw new IllegalStateException("ToolResultContinuation should not reach advance()");
+            case TransitionReason.BudgetContinuation b   -> { /* budget extension */ }
+            case TransitionReason.ToolResultContinuation c ->
+                    throw new IllegalStateException("ToolResultContinuation should not reach advance()");
         }
     }
 
@@ -126,12 +165,17 @@ public class QueryEngine {
         return skillSection + "\n\n" + base;
     }
 
-    private Message buildToolResultMessage(List<ContentBlock.ToolResult> results, boolean prependReminder) {
+    private Message buildToolResultMessage(List<ContentBlock.ToolResult> results,
+                                           boolean prependReminder) {
         List<ContentBlock> blocks = new ArrayList<>();
         if (prependReminder) {
             blocks.add(new ContentBlock.Text(REMINDER_TEXT));
         }
-        blocks.addAll(results);
+        // Layer 1: persist large tool outputs to disk
+        for (var r : results) {
+            var content = compactor.persistIfLarge(r.toolUseId(), r.content());
+            blocks.add(new ContentBlock.ToolResult(r.toolUseId(), content));
+        }
         return new Message(Role.USER, List.copyOf(blocks));
     }
 }

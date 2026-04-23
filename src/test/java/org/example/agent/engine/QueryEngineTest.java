@@ -103,13 +103,14 @@ class QueryEngineTest {
     // ---------------------------------------------------------------
 
     @Test
-    void max_tokens_appends_continue_prompt_and_resumes() {
+    void max_tokens_first_occurrence_triggers_compact_and_retries() {
         var registry = new ToolRegistry();
 
-        // Call 1: MAX_TOKENS  →  Call 2: END_TURN
         var responses = new ModelResponse[]{
-                new ModelResponse(List.of(new ContentBlock.Text("Part 1...")), StopReason.MAX_TOKENS, 10, 100),
-                new ModelResponse(List.of(new ContentBlock.Text("...Part 2.")), StopReason.END_TURN, 10, 20)
+                new ModelResponse(List.of(new ContentBlock.Text("Part 1...")),
+                        StopReason.MAX_TOKENS, 10, 100),
+                new ModelResponse(List.of(new ContentBlock.Text("...Part 2.")),
+                        StopReason.END_TURN, 10, 20)
         };
         var idx = new int[]{0};
 
@@ -118,12 +119,9 @@ class QueryEngineTest {
 
         assertInstanceOf(QueryResult.Success.class, result);
         var success = (QueryResult.Success) result;
-        assertEquals(2, success.totalTurns());
-        // messages: user → assistant(part1) → user("Please continue.") → assistant(part2)
-        assertEquals(4, success.messages().size());
-        assertEquals(Role.USER, success.messages().get(2).role());
-        var continueBlock = (ContentBlock.Text) success.messages().get(2).content().get(0);
-        assertEquals("Please continue.", continueBlock.text());
+        assertEquals(2, success.messages().size());
+        assertEquals(2, idx[0]);
+        assertEquals(Role.ASSISTANT, success.messages().get(1).role());
     }
 
     // ---------------------------------------------------------------

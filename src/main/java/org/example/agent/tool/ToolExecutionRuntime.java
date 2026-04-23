@@ -88,7 +88,7 @@ public class ToolExecutionRuntime {
         // PreToolUse hook
         if (hookRunner != null) {
             var pre = hookRunner.run(new HookEvent(HookEventName.PRE_TOOL_USE,
-                    Map.of("tool_name", toolUse.name(), "input", toolUse.input())));
+                    Map.of("tool_name", toolUse.name(), "input", Map.copyOf(toolUse.input()))));
             if (pre.exitCode() == 1) {
                 return new RouteResult(ToolResultEnvelope.error(pre.message()), List.of());
             }
@@ -108,8 +108,8 @@ public class ToolExecutionRuntime {
         // PostToolUse hook
         if (hookRunner != null) {
             var post = hookRunner.run(new HookEvent(HookEventName.POST_TOOL_USE,
-                    Map.copyOf(Map.of("tool_name", toolUse.name(), "input", toolUse.input(),
-                            "output", envelope.content()))));
+                    Map.of("tool_name", toolUse.name(), "input", Map.copyOf(toolUse.input()),
+                            "output", envelope.content())));
             if (post.exitCode() == 2) injections.add(post.message());
         }
 

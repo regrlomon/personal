@@ -13,6 +13,7 @@ import org.example.agent.permission.UserConfirmation;
 import org.example.agent.tool.*;
 import org.example.agent.tool.skill.SkillRegistry;
 
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,7 @@ public class QueryEngine {
     private final PermissionChecker permissionChecker;
     private final UserConfirmation   userConfirmation;
     private final HookRunner hookRunner;
+    private final MemoryStore memoryStore;
 
     // Promoted to instance fields so CompactTool lambdas (wired in Task 6) can read live values.
     // Only valid during an active run() call.
@@ -41,39 +43,44 @@ public class QueryEngine {
     private ToolUseContext currentCtx;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null);
+        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null, null);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), executor, null, null, null);
+        this(modelClient, toolRegistry, null, defaultCompactor(), executor, null, null, null, null);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                        SkillRegistry skillRegistry) {
-        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null);
+        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null, null);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                 ContextCompactor compactor, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, compactor, executor, null, null, null);
+        this(modelClient, toolRegistry, null, compactor, executor, null, null, null, null);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                        PermissionChecker permissionChecker, UserConfirmation userConfirmation) {
         this(modelClient, toolRegistry, null, defaultCompactor(),
-                ForkJoinPool.commonPool(), permissionChecker, userConfirmation, null);
+                ForkJoinPool.commonPool(), permissionChecker, userConfirmation, null, null);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, HookRunner hookRunner) {
         this(modelClient, toolRegistry, null, defaultCompactor(),
-                ForkJoinPool.commonPool(), null, null, hookRunner);
+                ForkJoinPool.commonPool(), null, null, hookRunner, null);
+    }
+
+    public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, MemoryStore memoryStore) {
+        this(modelClient, toolRegistry, null, defaultCompactor(),
+                ForkJoinPool.commonPool(), null, null, null, memoryStore);
     }
 
     private QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                         SkillRegistry skillRegistry, ContextCompactor compactor,
                         ExecutorService executor,
                         PermissionChecker permissionChecker, UserConfirmation userConfirmation,
-                        HookRunner hookRunner) {
+                        HookRunner hookRunner, MemoryStore memoryStore) {
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
         this.skillRegistry = skillRegistry;
@@ -81,6 +88,7 @@ public class QueryEngine {
         this.permissionChecker = permissionChecker;
         this.userConfirmation = userConfirmation;
         this.hookRunner = hookRunner;
+        this.memoryStore = memoryStore;
         var router = new ToolRouter(toolRegistry);
         this.runtime = new ToolExecutionRuntime(router, executor);
         toolRegistry.register(new CompactTool(
@@ -203,11 +211,34 @@ public class QueryEngine {
     }
 
     private String augmentSystemPrompt(String base) {
-        if (skillRegistry == null) return base;
-        var skillSection = skillRegistry.describeAvailable();
-        if (skillSection.isEmpty()) return base;
-        if (base == null || base.isEmpty()) return skillSection;
-        return skillSection + "\n\n" + base;
+        var result = base;
+        if (skillRegistry != null) {
+            var skillSection = skillRegistry.describeAvailable();
+            if (!skillSection.isEmpty()) {
+                result = (result == null || result.isEmpty()) ? skillSection : skillSection + "\n\n" + result;
+            }
+        }
+        var memSection = buildMemorySection();
+        if (!memSection.isEmpty()) {
+            result = (result == null || result.isEmpty()) ? memSection : result + "\n\n" + memSection;
+        }
+        return result;
+    }
+
+    private String buildMemorySection() {
+        if (memoryStore == null) return "";
+        try {
+            var entries = memoryStore.loadAll();
+            if (entries.isEmpty()) return "";
+            var sb = new StringBuilder("## Memories\n");
+            for (var e : entries) {
+                sb.append("\n### ").append(e.name()).append(" [").append(e.type()).append("]\n");
+                sb.append(e.content()).append("\n");
+            }
+            return sb.toString().stripTrailing();
+        } catch (IOException e) {
+            return "";
+        }
     }
 
     private Message buildToolResultMessage(List<ContentBlock.ToolResult> results,

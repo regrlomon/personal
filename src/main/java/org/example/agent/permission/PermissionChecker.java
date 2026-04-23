@@ -10,6 +10,9 @@ public class PermissionChecker {
 
     private static final Set<String> WRITE_TOOLS = Set.of("bash", "write_file", "edit_file");
     private static final Set<String> READ_ONLY_TOOLS = Set.of("read_file");
+    private static final List<String> BASH_DANGER_PATTERNS = List.of(
+            "sudo", "rm -rf", "$(", "`", "| sh", "| bash"
+    );
 
     private PermissionMode mode;
     private final List<PermissionRule> denyRules  = new ArrayList<>();
@@ -37,6 +40,18 @@ public class PermissionChecker {
                 denialCount++;
                 return new PermissionDecision(PermissionBehavior.DENY,
                         "matched deny rule" + (rule.content() != null ? ": " + rule.content() : ""));
+            }
+        }
+
+        // Step 1b: bash safety patterns
+        if ("bash".equals(toolName)) {
+            var command = (String) input.getOrDefault("command", "");
+            for (var pattern : BASH_DANGER_PATTERNS) {
+                if (command.contains(pattern)) {
+                    denialCount++;
+                    return new PermissionDecision(PermissionBehavior.DENY,
+                            "dangerous bash pattern detected: " + pattern);
+                }
             }
         }
 

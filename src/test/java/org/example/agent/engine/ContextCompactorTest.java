@@ -119,6 +119,72 @@ class ContextCompactorTest {
         assertEquals("val", toolResultContent(original, 1));
     }
 
+    // ── Layer 3: fullCompact ─────────────────────────────────────────
+
+    @Test
+    void fullCompact_returnsSingleUserMessage(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var messages = List.of(
+                Message.user("build a calculator"),
+                Message.assistant("Let me start.")
+        );
+
+        var result = compactor.fullCompact(messages, new PlanningState());
+
+        assertEquals(1, result.size());
+        assertEquals(Role.USER, result.get(0).role());
+        var text = ((ContentBlock.Text) result.get(0).content().get(0)).text();
+        assertTrue(text.startsWith("This conversation was compacted for continuity."));
+        assertTrue(text.contains("build a calculator"));
+        assertTrue(text.contains("Let me start."));
+    }
+
+    @Test
+    void fullCompact_includesCompletedAndPendingPlanItems(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var plan = new PlanningState();
+        plan.update(List.of(
+                new PlanItem("step 1", PlanStatus.COMPLETED, "completing step 1"),
+                new PlanItem("step 2", PlanStatus.PENDING, "doing step 2")
+        ));
+
+        var result = compactor.fullCompact(List.of(Message.user("task")), plan);
+        var text = ((ContentBlock.Text) result.get(0).content().get(0)).text();
+
+        assertTrue(text.contains("step 1"));
+        assertTrue(text.contains("step 2"));
+        assertTrue(text.contains("Completed Actions"));
+        assertTrue(text.contains("Pending Tasks"));
+    }
+
+    @Test
+    void fullCompact_extractsPersistedFilePaths(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var marker = "<persisted-output>\nFull output saved to: /tmp/abc.txt\nPreview:\nhello\n</persisted-output>";
+        var messages = List.of(
+                Message.user("task"),
+                new Message(Role.USER, List.of(new ContentBlock.ToolResult("id1", marker)))
+        );
+
+        var result = compactor.fullCompact(messages, new PlanningState());
+        var text = ((ContentBlock.Text) result.get(0).content().get(0)).text();
+
+        assertTrue(text.contains("/tmp/abc.txt"));
+        assertTrue(text.contains("Persisted Files"));
+    }
+
+    @Test
+    void fullCompact_emptyPlan_skipsCompletedAndPendingSections(@TempDir Path tempDir) {
+        var compactor = new ContextCompactor(tempDir);
+        var messages = List.of(Message.user("task"));
+
+        var result = compactor.fullCompact(messages, new PlanningState());
+        var text = ((ContentBlock.Text) result.get(0).content().get(0)).text();
+
+        assertFalse(text.contains("Completed Actions"));
+        assertFalse(text.contains("Pending Tasks"));
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private static Message toolResultMsg(String id, String content) {

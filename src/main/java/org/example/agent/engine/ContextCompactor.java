@@ -78,7 +78,85 @@ public class ContextCompactor {
     }
 
     public List<Message> fullCompact(List<Message> messages, PlanningState plan) {
-        // placeholder — implemented in Task 4
-        return List.of(Message.user("This conversation was compacted for continuity."));
+        var sb = new StringBuilder();
+        sb.append("This conversation was compacted for continuity.\n\n");
+        sb.append("## Compacted Context\n\n");
+
+        // Current Goal: first user text message
+        messages.stream()
+                .filter(m -> m.role() == Role.USER)
+                .findFirst()
+                .flatMap(m -> m.content().stream()
+                        .filter(b -> b instanceof ContentBlock.Text)
+                        .map(b -> ((ContentBlock.Text) b).text())
+                        .findFirst())
+                .ifPresent(goal -> sb.append("### Current Goal\n").append(goal).append("\n\n"));
+
+        // Completed Actions
+        var completed = plan.items().stream()
+                .filter(i -> i.status() == PlanStatus.COMPLETED)
+                .toList();
+        if (!completed.isEmpty()) {
+            sb.append("### Completed Actions\n");
+            completed.forEach(i -> sb.append("- ").append(i.content()).append("\n"));
+            sb.append("\n");
+        }
+
+        // Pending Tasks
+        var pending = plan.items().stream()
+                .filter(i -> i.status() != PlanStatus.COMPLETED)
+                .toList();
+        if (!pending.isEmpty()) {
+            sb.append("### Pending Tasks\n");
+            pending.forEach(i -> sb.append("- ").append(i.content()).append("\n"));
+            sb.append("\n");
+        }
+
+        // Persisted Files
+        var persistedPaths = extractPersistedPaths(messages);
+        if (!persistedPaths.isEmpty()) {
+            sb.append("### Persisted Files\n");
+            persistedPaths.forEach(p -> sb.append("- ").append(p).append("\n"));
+            sb.append("\n");
+        }
+
+        // Recent Assistant Output: last assistant Text block, first 1000 chars
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            var msg = messages.get(i);
+            if (msg.role() == Role.ASSISTANT) {
+                msg.content().stream()
+                        .filter(b -> b instanceof ContentBlock.Text)
+                        .map(b -> ((ContentBlock.Text) b).text())
+                        .findFirst()
+                        .ifPresent(text -> {
+                            var preview = text.length() > 1000 ? text.substring(0, 1000) : text;
+                            sb.append("### Recent Assistant Output\n").append(preview);
+                        });
+                break;
+            }
+        }
+
+        return List.of(Message.user(sb.toString().stripTrailing()));
+    }
+
+    private List<String> extractPersistedPaths(List<Message> messages) {
+        var paths = new ArrayList<String>();
+        for (var msg : messages) {
+            for (var block : msg.content()) {
+                String text = switch (block) {
+                    case ContentBlock.Text t -> t.text();
+                    case ContentBlock.ToolResult tr -> tr.content();
+                    default -> null;
+                };
+                if (text != null && text.contains("<persisted-output>")) {
+                    for (var line : text.split("\n")) {
+                        if (line.startsWith("Full output saved to: ")) {
+                            paths.add(line.substring("Full output saved to: ".length()).trim());
+                        }
+                    }
+                }
+            }
+        }
+        return List.copyOf(paths);
     }
 }

@@ -16,6 +16,7 @@ import org.example.agent.tool.skill.SkillRegistry;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 
@@ -106,8 +107,9 @@ public class QueryEngine {
 
         // SessionStart hook
         if (hookRunner != null) {
+            var sysPrompt = params.systemPrompt() != null ? params.systemPrompt() : "";
             hookRunner.run(new HookEvent(HookEventName.SESSION_START,
-                    java.util.Map.of("system_prompt", String.valueOf(params.systemPrompt()))));
+                    Map.of("system_prompt", sysPrompt)));
         }
 
         while (true) {

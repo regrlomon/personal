@@ -46,16 +46,22 @@ class QueryEngineHookTest {
 
     @Test
     void session_start_hook_is_called_before_first_model_call() {
-        var called = new AtomicBoolean(false);
+        var hookCalled = new AtomicBoolean(false);
+        var hookCalledBeforeModel = new AtomicBoolean(false);
+
         HookRunner hook = event -> {
-            if (event.name() == HookEventName.SESSION_START) called.set(true);
+            if (event.name() == HookEventName.SESSION_START) hookCalled.set(true);
             return HookResult.ok();
         };
+        ModelClient model = req -> {
+            hookCalledBeforeModel.set(hookCalled.get());
+            return new ModelResponse(List.of(new ContentBlock.Text("done")), StopReason.END_TURN, 0, 0);
+        };
 
-        var engine = new QueryEngine(endTurnModel(), new ToolRegistry(), hook);
+        var engine = new QueryEngine(model, new ToolRegistry(), hook);
         engine.run(new QueryParams(List.of(Message.user("hi")), null, null, null, 5));
 
-        assertTrue(called.get(), "SessionStart hook must be called");
+        assertTrue(hookCalledBeforeModel.get(), "SessionStart must fire before first model call");
     }
 
     @Test

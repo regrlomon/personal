@@ -1,5 +1,6 @@
 package org.example.agent.hook;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +19,7 @@ public class HookConfig {
         return commands.getOrDefault(event, List.of());
     }
 
-    public static HookConfig load(Path path) throws Exception {
+    public static HookConfig load(Path path) throws IOException {
         return parse(Files.readString(path));
     }
 
@@ -27,6 +28,7 @@ public class HookConfig {
             if (is == null) return empty();
             return parse(new String(is.readAllBytes()));
         } catch (Exception e) {
+            System.err.println("[HookConfig] failed to load hooks.json from classpath: " + e.getMessage());
             return empty();
         }
     }

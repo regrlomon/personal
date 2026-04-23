@@ -89,7 +89,7 @@ public interface HookRunner {
 
 加载路径优先级：
 1. 构造时显式传入路径
-2. 工作目录下 `.claude/hooks.json`
+2. classpath 根目录 `hooks.json`（即 `src/main/resources/hooks.json`），通过 `ClassLoader.getResourceAsStream("hooks.json")` 加载
 3. 文件不存在 → 空配置（无任何 hook）
 
 ### ShellHookRunner（实现）
@@ -185,6 +185,8 @@ for (String msg : execResult.injectionMessages()) {
 // 5. currentCtx 构建时携带 hookRunner
 currentCtx = baseCtx.withHookRunner(hookRunner);
 ```
+
+`hooks.json` 放在 `src/main/resources/hooks.json`，运行时通过 classpath 加载，修改后重启生效。
 
 ---
 

@@ -198,4 +198,42 @@ class PermissionCheckerTest {
         assertEquals(PermissionBehavior.ASK,
                 checker.check("bash", Map.of("command", "git log --oneline")).behavior());
     }
+
+    // ---- denial counter ----
+
+    @Test
+    void denial_count_starts_at_zero() {
+        var checker = new PermissionChecker(PermissionMode.DEFAULT);
+        assertEquals(0, checker.denialCount());
+    }
+
+    @Test
+    void denial_count_increments_on_deny_rule_match() {
+        var checker = new PermissionChecker(PermissionMode.DEFAULT)
+                .addDenyRule(new PermissionRule("bash", PermissionBehavior.DENY, null));
+        checker.check("bash", Map.of("command", "echo hi"));
+        checker.check("bash", Map.of("command", "echo hi"));
+        assertEquals(2, checker.denialCount());
+    }
+
+    @Test
+    void denial_count_increments_on_plan_mode_deny() {
+        var checker = new PermissionChecker(PermissionMode.PLAN);
+        checker.check("bash", Map.of("command", "echo hi"));
+        assertEquals(1, checker.denialCount());
+    }
+
+    @Test
+    void denial_count_does_not_increment_on_allow() {
+        var checker = new PermissionChecker(PermissionMode.AUTO);
+        checker.check("read_file", Map.of("path", "README.md"));
+        assertEquals(0, checker.denialCount());
+    }
+
+    @Test
+    void denial_count_increments_on_bash_safety_deny() {
+        var checker = new PermissionChecker(PermissionMode.DEFAULT);
+        checker.check("bash", Map.of("command", "sudo rm something"));
+        assertEquals(1, checker.denialCount());
+    }
 }

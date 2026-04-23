@@ -249,33 +249,32 @@ public class CompactTool implements Tool {
 }
 ```
 
-`QueryEngine` holds two `AtomicReference` fields so `CompactTool` can be wired at construction time and still read live per-run state:
+`state` and `ctx` are promoted from local variables in `run()` to **instance fields** of `QueryEngine`. `CompactTool` lambdas capture `this`, so they always read the live values without needing any mutable holder wrapper:
 
 ```java
-// QueryEngine fields
-private final AtomicReference<QueryState>     stateRef = new AtomicReference<>();
-private final AtomicReference<ToolUseContext> ctxRef   = new AtomicReference<>();
+// QueryEngine instance fields (not final — reassigned at start of each run())
+private QueryState      currentState;
+private ToolUseContext  currentCtx;
 ```
 
-`run()` initialises them before the loop:
+`run()` assigns them before the loop:
 ```java
-var state = QueryState.from(params);
-stateRef.set(state);
-ctxRef.set(ToolUseContext.defaults(cwd));
-// in loop after tool execution: ctxRef.set(execResult.updatedContext())
+currentState = QueryState.from(params);
+currentCtx   = ToolUseContext.defaults(cwd);
+// in loop after tool execution: currentCtx = execResult.updatedContext()
 ```
 
-`CompactTool` is constructed once in the `QueryEngine` constructor using lambdas that dereference the refs at call time:
+`CompactTool` is constructed once in the `QueryEngine` constructor:
 ```java
 new CompactTool(
     compactor,
-    () -> List.copyOf(stateRef.get().messages()),
-    msgs -> stateRef.get().replaceMessages(msgs),
-    () -> ctxRef.get().planningState()
+    () -> List.copyOf(currentState.messages()),
+    msgs -> currentState.replaceMessages(msgs),
+    () -> currentCtx.planningState()
 )
 ```
 
-This keeps tool registration outside the loop while always reading the current `state` and `ctx`.
+`QueryEngine.run()` is not re-entrant (sequential loop), so no concurrency concern with mutable fields.
 
 ---
 

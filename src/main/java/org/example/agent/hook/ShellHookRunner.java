@@ -89,6 +89,6 @@ public class ShellHookRunner implements HookRunner {
         if (v instanceof String s)
             return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
         if (v instanceof Map<?, ?> m) return toJson((Map<String, Object>) m);
-        return String.valueOf(v);  // Number, Boolean
+        return String.valueOf(v);  // Number, Boolean — List not supported (payload values are Strings and Maps)
     }
 }

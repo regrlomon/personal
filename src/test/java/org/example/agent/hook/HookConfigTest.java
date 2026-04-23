@@ -57,10 +57,8 @@ class HookConfigTest {
 
     @Test
     void load_from_classpath_finds_test_hooks_json() {
-        // requires src/test/resources/hooks.json to exist
+        // loads src/test/resources/hooks.json (test classpath takes priority over main)
         var config = HookConfig.loadFromClasspath();
-        assertNotNull(config);
-        // test resource has PreToolUse configured
-        assertFalse(config.commandsFor(HookEventName.PRE_TOOL_USE).isEmpty());
+        assertEquals(List.of("exit 0"), config.commandsFor(HookEventName.PRE_TOOL_USE));
     }
 }

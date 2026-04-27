@@ -99,4 +99,54 @@ class SystemPromptBuilderTest {
         var b = new SystemPromptBuilder(null, store, tempDir.toString());
         assertEquals("", b.buildMemory());
     }
+
+    // ---- buildPeragentMd ----
+
+    @Test
+    void buildPeragentMd_returns_empty_when_no_files_exist() {
+        assertEquals("", builder().buildPeragentMd());
+    }
+
+    @Test
+    void buildPeragentMd_loads_project_file_when_present() throws Exception {
+        var peragentDir = tempDir.resolve(".peragent");
+        java.nio.file.Files.createDirectories(peragentDir);
+        java.nio.file.Files.writeString(peragentDir.resolve("peragent.md"), "project rules");
+        var result = builder().buildPeragentMd();
+        assertTrue(result.contains("=== peragent.md (project) ==="),
+                "must include project label");
+        assertTrue(result.contains("project rules"),
+                "must include file content");
+    }
+
+    @Test
+    void buildPeragentMd_both_files_appear_in_order() throws Exception {
+        // simulate global file via a second temp dir acting as userHome
+        var fakeHome = tempDir.resolve("home");
+        var globalDir = fakeHome.resolve(".peragent");
+        java.nio.file.Files.createDirectories(globalDir);
+        java.nio.file.Files.writeString(globalDir.resolve("peragent.md"), "global rules");
+
+        var projectDir = tempDir.resolve(".peragent");
+        java.nio.file.Files.createDirectories(projectDir);
+        java.nio.file.Files.writeString(projectDir.resolve("peragent.md"), "project rules");
+
+        // Use an anonymous subclass to inject the fake home, bypassing System.getProperty("user.home")
+        var b = new SystemPromptBuilder(null, null, tempDir.toString()) {
+            @Override
+            String buildPeragentMd() {
+                var sb = new StringBuilder();
+                appendPeragentFile(sb, globalDir.resolve("peragent.md"), "global");
+                appendPeragentFile(sb, tempDir.resolve(".peragent/peragent.md"), "project");
+                return sb.toString().stripTrailing();
+            }
+        };
+        var result = b.buildPeragentMd();
+        assertTrue(result.contains("=== peragent.md (global) ==="));
+        assertTrue(result.contains("global rules"));
+        assertTrue(result.contains("=== peragent.md (project) ==="));
+        assertTrue(result.contains("project rules"));
+        assertTrue(result.indexOf("global") < result.indexOf("project"),
+                "global must appear before project");
+    }
 }

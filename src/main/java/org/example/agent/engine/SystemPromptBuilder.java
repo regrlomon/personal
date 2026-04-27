@@ -61,7 +61,23 @@ public class SystemPromptBuilder {
     }
 
     String buildPeragentMd() {
-        return "";
+        var sb = new StringBuilder();
+        var userHome = System.getProperty("user.home");
+        appendPeragentFile(sb, java.nio.file.Path.of(userHome, ".peragent", "peragent.md"), "global");
+        appendPeragentFile(sb, java.nio.file.Path.of(cwd, ".peragent", "peragent.md"), "project");
+        return sb.toString().stripTrailing();
+    }
+
+    void appendPeragentFile(StringBuilder sb, java.nio.file.Path path, String label) {
+        if (!java.nio.file.Files.exists(path)) return;
+        try {
+            var content = java.nio.file.Files.readString(path).stripTrailing();
+            if (!sb.isEmpty()) sb.append("\n\n");
+            sb.append("=== peragent.md (").append(label).append(") ===\n");
+            sb.append(content);
+        } catch (java.io.IOException e) {
+            // silently skip
+        }
     }
 
     String buildDynamic() {

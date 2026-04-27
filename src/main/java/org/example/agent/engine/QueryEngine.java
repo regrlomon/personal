@@ -13,7 +13,6 @@ import org.example.agent.permission.UserConfirmation;
 import org.example.agent.tool.*;
 import org.example.agent.tool.skill.SkillRegistry;
 
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +35,7 @@ public class QueryEngine {
     private final UserConfirmation   userConfirmation;
     private final HookRunner hookRunner;
     private final MemoryStore memoryStore;
+    private final SystemPromptBuilder promptBuilder;
 
     // Promoted to instance fields so CompactTool lambdas (wired in Task 6) can read live values.
     // Only valid during an active run() call.
@@ -97,6 +97,8 @@ public class QueryEngine {
                 msgs -> currentState.replaceMessages(msgs),
                 () -> currentCtx.planningState()
         ));
+        this.promptBuilder = new SystemPromptBuilder(skillRegistry, memoryStore,
+                System.getProperty("user.dir"));
     }
 
     private static ContextCompactor defaultCompactor() {
@@ -211,34 +213,7 @@ public class QueryEngine {
     }
 
     private String augmentSystemPrompt(String base) {
-        var result = base;
-        if (skillRegistry != null) {
-            var skillSection = skillRegistry.describeAvailable();
-            if (!skillSection.isEmpty()) {
-                result = (result == null || result.isEmpty()) ? skillSection : skillSection + "\n\n" + result;
-            }
-        }
-        var memSection = buildMemorySection();
-        if (!memSection.isEmpty()) {
-            result = (result == null || result.isEmpty()) ? memSection : result + "\n\n" + memSection;
-        }
-        return result;
-    }
-
-    private String buildMemorySection() {
-        if (memoryStore == null) return "";
-        try {
-            var entries = memoryStore.loadAll();
-            if (entries.isEmpty()) return "";
-            var sb = new StringBuilder("## Memories\n");
-            for (var e : entries) {
-                sb.append("\n### ").append(e.name()).append(" [").append(e.type()).append("]\n");
-                sb.append(e.content()).append("\n");
-            }
-            return sb.toString().stripTrailing();
-        } catch (IOException e) {
-            return "";
-        }
+        return promptBuilder.build(base);
     }
 
     private Message buildToolResultMessage(List<ContentBlock.ToolResult> results,

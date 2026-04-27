@@ -38,7 +38,7 @@ class QueryEngineSkillTest {
 
         assertEquals(1, captured.size());
         var sp = captured.get(0).systemPrompt();
-        assertTrue(sp.startsWith("Skills available:"), "should start with skill section");
+        assertTrue(sp.contains("Skills available:"), "should contain skill section");
         assertTrue(sp.contains("foo: Foo skill"), "should list skill");
         assertTrue(sp.contains("base prompt"), "should retain base prompt");
     }
@@ -67,7 +67,9 @@ class QueryEngineSkillTest {
 
         engine.run(params("original prompt"));
 
-        assertEquals("original prompt", captured.get(0).systemPrompt());
+        var sp = captured.get(0).systemPrompt();
+        assertTrue(sp.contains("original prompt"), "base prompt must be present");
+        assertTrue(sp.contains("=== Dynamic Context ==="), "dynamic section must be present");
     }
 
     @Test
@@ -78,6 +80,8 @@ class QueryEngineSkillTest {
 
         engine.run(params("original prompt"));
 
-        assertEquals("original prompt", captured.get(0).systemPrompt());
+        var sp = captured.get(0).systemPrompt();
+        assertTrue(sp.contains("original prompt"), "base prompt must be present");
+        assertTrue(sp.contains("=== Dynamic Context ==="), "dynamic section must be present");
     }
 }

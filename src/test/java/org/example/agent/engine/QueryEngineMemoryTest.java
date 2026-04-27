@@ -74,7 +74,8 @@ class QueryEngineMemoryTest {
                 null, null, null
         ));
 
-        assertEquals("just base", capturedPrompt[0]);
+        assertTrue(capturedPrompt[0].contains("just base"), "base prompt must be present");
+        assertFalse(capturedPrompt[0].contains("## Memories"), "must not have memory section");
     }
 
     @Test
@@ -100,6 +101,7 @@ class QueryEngineMemoryTest {
                 null, null, null
         ));
 
-        assertEquals("base only", capturedPrompt[0]);
+        assertTrue(capturedPrompt[0].contains("base only"), "base prompt must be present");
+        assertFalse(capturedPrompt[0].contains("## Memories"), "must not have memory section");
     }
 }

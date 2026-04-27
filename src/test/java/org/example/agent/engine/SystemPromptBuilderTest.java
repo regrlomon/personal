@@ -149,4 +149,62 @@ class SystemPromptBuilderTest {
         assertTrue(result.indexOf("global") < result.indexOf("project"),
                 "global must appear before project");
     }
+
+    // ---- build() integration ----
+
+    @Test
+    void build_filters_empty_sections_and_joins_with_double_newline() {
+        // null registry, null store, no peragent files → only core + dynamic
+        var b = new SystemPromptBuilder(null, null, tempDir.toString());
+        var result = b.build("my core");
+        assertTrue(result.contains("my core"), "core must be present");
+        assertTrue(result.contains("=== Dynamic Context ==="), "dynamic must be present");
+        assertFalse(result.contains("\n\n\n"), "must not have triple newline (empty section leaked)");
+    }
+
+    @Test
+    void build_null_core_does_not_produce_literal_null() {
+        var result = builder().build(null);
+        assertFalse(result.contains("null"), "must not contain literal 'null'");
+        assertTrue(result.contains("=== Dynamic Context ==="));
+    }
+
+    @Test
+    void build_includes_all_non_empty_sections_in_order() throws Exception {
+        // skills
+        var doc = new SkillDocument(new SkillManifest("sk", "Skill desc"), "body");
+        var registry = new SkillRegistry(java.util.Map.of("sk", doc));
+
+        // memory
+        var store = new MemoryStore(tempDir.resolve(".memory"));
+        store.save(new MemoryEntry("k", "d", "user", "mem content"));
+
+        // peragent project file
+        var peragentDir = tempDir.resolve(".peragent");
+        java.nio.file.Files.createDirectories(peragentDir);
+        java.nio.file.Files.writeString(peragentDir.resolve("peragent.md"), "project rule");
+
+        var b = new SystemPromptBuilder(registry, store, tempDir.toString());
+        var result = b.build("core text");
+
+        // all sections present
+        assertTrue(result.contains("core text"));
+        assertTrue(result.contains("sk: Skill desc"));
+        assertTrue(result.contains("## Memories"));
+        assertTrue(result.contains("mem content"));
+        assertTrue(result.contains("=== peragent.md (project) ==="));
+        assertTrue(result.contains("project rule"));
+        assertTrue(result.contains("=== Dynamic Context ==="));
+
+        // order: core → skills → memory → peragent → dynamic
+        int iCore    = result.indexOf("core text");
+        int iSkills  = result.indexOf("sk: Skill desc");
+        int iMemory  = result.indexOf("## Memories");
+        int iPeragent= result.indexOf("=== peragent.md");
+        int iDynamic = result.indexOf("=== Dynamic Context ===");
+        assertTrue(iCore < iSkills, "core before skills");
+        assertTrue(iSkills < iMemory, "skills before memory");
+        assertTrue(iMemory < iPeragent, "memory before peragent");
+        assertTrue(iPeragent < iDynamic, "peragent before dynamic");
+    }
 }

@@ -27,7 +27,7 @@ public class SystemPromptBuilder {
                 buildPeragentMd(),
                 buildDynamic()
         ).stream()
-         .filter(s -> !s.isEmpty())
+         .filter(s -> !s.isBlank())
          .collect(Collectors.joining("\n\n"));
     }
 
@@ -40,11 +40,24 @@ public class SystemPromptBuilder {
     }
 
     String buildSkills() {
-        return "";
+        if (skillRegistry == null) return "";
+        return skillRegistry.describeAvailable();
     }
 
     String buildMemory() {
-        return "";
+        if (memoryStore == null) return "";
+        try {
+            var entries = memoryStore.loadAll();
+            if (entries.isEmpty()) return "";
+            var sb = new StringBuilder("## Memories\n");
+            for (var e : entries) {
+                sb.append("\n### ").append(e.name()).append(" [").append(e.type()).append("]\n");
+                sb.append(e.content()).append("\n");
+            }
+            return sb.toString().stripTrailing();
+        } catch (java.io.IOException e) {
+            return "";
+        }
     }
 
     String buildPeragentMd() {

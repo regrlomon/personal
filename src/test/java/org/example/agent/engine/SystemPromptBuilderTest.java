@@ -42,4 +42,46 @@ class SystemPromptBuilderTest {
         assertTrue(dynamic.contains("CWD:  " + tempDir),
                 "must contain cwd");
     }
+
+    // ---- buildSkills ----
+
+    @Test
+    void buildSkills_returns_empty_when_registry_is_null() {
+        assertEquals("", builder().buildSkills());
+    }
+
+    @Test
+    void buildSkills_returns_description_from_registry() {
+        var doc = new org.example.agent.tool.skill.SkillDocument(
+                new org.example.agent.tool.skill.SkillManifest("my-skill", "Does stuff"), "body");
+        var registry = new org.example.agent.tool.skill.SkillRegistry(java.util.Map.of("my-skill", doc));
+        var b = new SystemPromptBuilder(registry, null, tempDir.toString());
+        assertTrue(b.buildSkills().contains("my-skill: Does stuff"));
+    }
+
+    // ---- buildMemory ----
+
+    @Test
+    void buildMemory_returns_empty_when_store_is_null() {
+        assertEquals("", builder().buildMemory());
+    }
+
+    @Test
+    void buildMemory_returns_empty_when_store_has_no_entries() throws Exception {
+        var store = new MemoryStore(tempDir.resolve(".memory"));
+        var b = new SystemPromptBuilder(null, store, tempDir.toString());
+        assertEquals("", b.buildMemory());
+    }
+
+    @Test
+    void buildMemory_formats_entries_under_memories_header() throws Exception {
+        var store = new MemoryStore(tempDir.resolve(".memory"));
+        store.save(new org.example.agent.core.MemoryEntry(
+                "key1", "desc", "user", "Remember this."));
+        var b = new SystemPromptBuilder(null, store, tempDir.toString());
+        var result = b.buildMemory();
+        assertTrue(result.startsWith("## Memories"));
+        assertTrue(result.contains("key1 [user]"));
+        assertTrue(result.contains("Remember this."));
+    }
 }

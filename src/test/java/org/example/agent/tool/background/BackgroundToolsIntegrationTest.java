@@ -141,4 +141,40 @@ class BackgroundToolsIntegrationTest {
     void list_definition_has_correct_name() {
         assertEquals("background_list", new BackgroundListTool().definition().name());
     }
+
+    // ── BackgroundCancelTool ─────────────────────────────────────────────────
+
+    @Test
+    void cancel_returns_cancelled_message() throws InterruptedException {
+        var id = manager.submit(new ShellBackgroundTask("sleep 30", 60));
+        Thread.sleep(100);
+        var tool = new BackgroundCancelTool();
+        var result = tool.execute(Map.of("id", id), ctx);
+        assertTrue(result.ok());
+        assertTrue(result.content().contains("cancelled"));
+        assertTrue(result.content().contains(id));
+    }
+
+    @Test
+    void cancel_already_completed_returns_not_cancellable() throws InterruptedException {
+        var id = manager.submit(new ShellBackgroundTask("echo x", 10));
+        waitForStatus(id, RuntimeTaskStatus.COMPLETED, 3000);
+        var tool = new BackgroundCancelTool();
+        var result = tool.execute(Map.of("id", id), ctx);
+        assertTrue(result.ok());
+        assertTrue(result.content().contains("not cancellable"));
+        assertTrue(result.content().contains("COMPLETED"));
+    }
+
+    @Test
+    void cancel_returns_error_for_unknown_id() {
+        var result = new BackgroundCancelTool().execute(Map.of("id", "nosuchid"), ctx);
+        assertFalse(result.ok());
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void cancel_definition_has_correct_name() {
+        assertEquals("background_cancel", new BackgroundCancelTool().definition().name());
+    }
 }

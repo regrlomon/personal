@@ -111,10 +111,6 @@ public class QueryEngine {
                 msgs -> currentState.replaceMessages(msgs),
                 () -> currentCtx.planningState()
         ));
-        toolRegistry.register(new org.example.agent.tool.task.TaskCreateTool());
-        toolRegistry.register(new org.example.agent.tool.task.TaskUpdateTool());
-        toolRegistry.register(new org.example.agent.tool.task.TaskGetTool());
-        toolRegistry.register(new org.example.agent.tool.task.TaskListTool());
         this.promptBuilder = new SystemPromptBuilder(skillRegistry, memoryStore,
                 System.getProperty("user.dir"));
         this.messagePipeline = new MessagePipeline();

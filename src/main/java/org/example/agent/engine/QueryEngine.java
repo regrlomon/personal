@@ -26,7 +26,7 @@ public class QueryEngine {
     private static final String REMINDER_TEXT =
             "<reminder>Refresh your todo plan before continuing.</reminder>";
 
-    private static final int TRANSPORT_RETRY_BUDGET = 3;
+    private static final int TRANSPORT_RETRY_BUDGET = 3; // max retry attempts (4 total calls)
 
     private static final List<String> TRANSIENT_KEYWORDS =
             List.of("timeout", "rate", "unavailable", "connection");
@@ -226,8 +226,8 @@ public class QueryEngine {
                     Thread.currentThread().interrupt();
                     throw new RuntimeException(ie);
                 }
-                currentState.incrementTransportRetry();
-                currentState.setLastTransition(r);
+                state.incrementTransportRetry();
+                state.setLastTransition(r);
             }
             case TransitionReason.StopHookContinuation h -> { /* s08 extension */ }
             case TransitionReason.BudgetContinuation b   -> { /* budget extension */ }

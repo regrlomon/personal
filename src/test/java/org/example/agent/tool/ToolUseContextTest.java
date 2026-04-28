@@ -53,5 +53,22 @@ class ToolUseContextTest {
         var updated = ctx.withNotifications(List.of("msg"));
         assertSame(ctx.planningState(), updated.planningState());
     }
+
+    @Test
+    void defaults_creates_null_task_manager() {
+        var ctx = ToolUseContext.defaults("/workspace");
+        assertNull(ctx.taskManager());
+    }
+
+    @Test
+    void withTaskManager_returns_new_context_with_task_manager() {
+        var ctx = ToolUseContext.defaults(".");
+        var manager = new org.example.agent.tool.task.TaskManager(
+                java.nio.file.Path.of(System.getProperty("java.io.tmpdir"),
+                        "test-tasks-" + System.nanoTime()));
+        var updated = ctx.withTaskManager(manager);
+        assertSame(manager, updated.taskManager());
+        assertSame(ctx.planningState(), updated.planningState());
+    }
 }
 

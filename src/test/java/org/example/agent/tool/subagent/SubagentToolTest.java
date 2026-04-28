@@ -13,22 +13,28 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SubagentToolTest {
 
+    private final SubagentTool tool = new SubagentTool(req -> null, new ToolRegistry(), 5);
+
     @Test
     void definition_has_correct_name() {
-        var tool = new SubagentTool(req -> null, new ToolRegistry(), 5);
         assertEquals("subagent", tool.definition().name());
     }
 
     @Test
     void is_not_concurrency_safe() {
-        var tool = new SubagentTool(req -> null, new ToolRegistry(), 5);
         assertFalse(tool.isConcurrencySafe());
     }
 
     @Test
     void execute_returns_error_when_prompt_missing() {
-        var tool = new SubagentTool(req -> null, new ToolRegistry(), 5);
         var result = tool.execute(Map.of(), ToolUseContext.defaults("."));
+        assertFalse(result.ok());
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void execute_returns_error_when_prompt_is_blank() {
+        var result = tool.execute(Map.of("prompt", "   "), ToolUseContext.defaults("."));
         assertFalse(result.ok());
         assertTrue(result.isError());
     }
@@ -71,10 +77,22 @@ class SubagentToolTest {
         };
         var idx = new int[]{0};
 
-        var tool = new SubagentTool(request -> responses[idx[0]++], subRegistry, 5);
-        var result = tool.execute(Map.of("prompt", "search for something"), ToolUseContext.defaults("."));
+        var toolWithRegistry = new SubagentTool(request -> responses[idx[0]++], subRegistry, 5);
+        var result = toolWithRegistry.execute(Map.of("prompt", "search for something"), ToolUseContext.defaults("."));
 
         assertTrue(result.ok());
         assertEquals("search complete", result.content());
+    }
+
+    @Test
+    void execute_returns_error_when_subagent_produces_no_output() {
+        var toolNoOutput = new SubagentTool(
+                request -> new ModelResponse(List.of(), StopReason.END_TURN, 10, 5),
+                new ToolRegistry(),
+                5
+        );
+        var result = toolNoOutput.execute(Map.of("prompt", "do something"), ToolUseContext.defaults("."));
+        assertFalse(result.ok());
+        assertTrue(result.content().contains("no output"));
     }
 }

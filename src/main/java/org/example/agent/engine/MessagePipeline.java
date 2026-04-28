@@ -11,6 +11,7 @@ public class MessagePipeline {
     public List<Message> build(List<Message> raw,
                                List<Attachment> attachments,
                                List<ReminderMessage> reminders) {
+        Objects.requireNonNull(raw, "raw must not be null");
         Objects.requireNonNull(attachments, "attachments must not be null");
         Objects.requireNonNull(reminders, "reminders must not be null");
         var messages = normalize(raw);
@@ -25,6 +26,8 @@ public class MessagePipeline {
 
     private List<Message> prependAttachments(List<Message> messages,
                                              List<Attachment> attachments) {
+        // Attachments are prepended after normalization so they remain distinct messages
+        // and are not merged with the first user turn by normalize().
         if (attachments.isEmpty()) return messages;
         var result = new ArrayList<Message>();
         attachments.forEach(a -> result.add(a.toMessage()));

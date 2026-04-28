@@ -66,4 +66,52 @@ class BackgroundToolsIntegrationTest {
     void run_definition_has_correct_name() {
         assertEquals("background_run", new BackgroundRunTool().definition().name());
     }
+
+    // ── BackgroundCheckTool ──────────────────────────────────────────────────
+
+    @Test
+    void check_running_task_shows_running_status() throws InterruptedException {
+        var id = manager.submit(new ShellBackgroundTask("sleep 10", 30));
+        var tool = new BackgroundCheckTool();
+        var result = tool.execute(Map.of("id", id), ctx);
+        assertTrue(result.ok());
+        assertTrue(result.content().contains("RUNNING"));
+        assertTrue(result.content().contains(id));
+    }
+
+    @Test
+    void check_completed_task_shows_preview_and_log_path() throws InterruptedException {
+        var id = manager.submit(new ShellBackgroundTask("echo finished", 10));
+        waitForStatus(id, RuntimeTaskStatus.COMPLETED, 3000);
+        var tool = new BackgroundCheckTool();
+        var result = tool.execute(Map.of("id", id), ctx);
+        assertTrue(result.ok());
+        assertTrue(result.content().contains("COMPLETED"));
+        assertTrue(result.content().contains("finished"));
+        assertTrue(result.content().contains(".log"));
+    }
+
+    @Test
+    void check_returns_error_for_unknown_id() {
+        var tool = new BackgroundCheckTool();
+        var result = tool.execute(Map.of("id", "notexist"), ctx);
+        assertFalse(result.ok());
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void check_definition_has_correct_name() {
+        assertEquals("background_check", new BackgroundCheckTool().definition().name());
+    }
+
+    private void waitForStatus(String id, RuntimeTaskStatus expected, long timeoutMs)
+            throws InterruptedException {
+        var deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            var record = manager.check(id);
+            if (record != null && record.status() == expected) return;
+            Thread.sleep(50);
+        }
+        throw new AssertionError("Timed out waiting for " + expected);
+    }
 }

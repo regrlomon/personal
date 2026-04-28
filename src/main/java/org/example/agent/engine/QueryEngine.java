@@ -13,6 +13,11 @@ import org.example.agent.permission.UserConfirmation;
 import org.example.agent.tool.*;
 import org.example.agent.tool.skill.SkillRegistry;
 import org.example.agent.tool.task.TaskManager;
+import org.example.agent.tool.background.BackgroundCancelTool;
+import org.example.agent.tool.background.BackgroundCheckTool;
+import org.example.agent.tool.background.BackgroundListTool;
+import org.example.agent.tool.background.BackgroundManager;
+import org.example.agent.tool.background.BackgroundRunTool;
 
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -112,6 +117,10 @@ public class QueryEngine {
                 msgs -> currentState.replaceMessages(msgs),
                 () -> currentCtx.planningState()
         ));
+        toolRegistry.register(new BackgroundRunTool());
+        toolRegistry.register(new BackgroundCheckTool());
+        toolRegistry.register(new BackgroundListTool());
+        toolRegistry.register(new BackgroundCancelTool());
         this.promptBuilder = new SystemPromptBuilder(skillRegistry, memoryStore,
                 System.getProperty("user.dir"));
         this.messagePipeline = new MessagePipeline();
@@ -131,6 +140,9 @@ public class QueryEngine {
         if (hookRunner != null) ctx = ctx.withHookRunner(hookRunner);
         var taskManagerPath = Paths.get(System.getProperty("user.dir"), ".tasks");
         ctx = ctx.withTaskManager(new TaskManager(taskManagerPath));
+        var backgroundPath = Paths.get(System.getProperty("user.dir"), ".runtime-tasks");
+        var backgroundManager = new BackgroundManager(backgroundPath);
+        ctx = ctx.withBackgroundManager(backgroundManager);
         currentCtx = ctx;
 
         // SessionStart hook
@@ -140,9 +152,11 @@ public class QueryEngine {
                     Map.of("system_prompt", sysPrompt)));
         }
 
-        while (true) {
-            // Layer 2: trim old tool results before every model call
-            currentState.replaceMessages(compactor.microCompact(currentState.messages()));
+        try {
+            while (true) {
+                // Layer 2: trim old tool results before every model call
+                drainAndInject(currentState, currentCtx);
+                currentState.replaceMessages(compactor.microCompact(currentState.messages()));
 
             if (params.maxTurns() != null && currentState.turnCount() > params.maxTurns()) {
                 return new QueryResult.Success(currentState.messages(), currentState.turnCount());
@@ -189,6 +203,9 @@ public class QueryEngine {
                 }
                 advance(currentState, transition, response);
             }
+            } // end while
+        } finally {
+            backgroundManager.shutdown();
         }
     }
 
@@ -288,5 +305,16 @@ public class QueryEngine {
             blocks.add(new ContentBlock.ToolResult(r.toolUseId(), content));
         }
         return new Message(Role.USER, List.copyOf(blocks));
+    }
+
+    private void drainAndInject(QueryState state, ToolUseContext ctx) {
+        if (ctx.backgroundManager() == null) return;
+        var notifications = ctx.backgroundManager().drain();
+        if (notifications.isEmpty()) return;
+        var text = notifications.stream()
+                .map(n -> "[bg:%s] %s - %s\nPreview: %s\nFull output: .runtime-tasks/%s.log"
+                        .formatted(n.taskId(), n.status(), n.description(), n.preview(), n.taskId()))
+                .collect(java.util.stream.Collectors.joining("\n\n"));
+        state.appendMessage(Message.user(text));
     }
 }

@@ -36,6 +36,7 @@ public class QueryEngine {
     private final HookRunner hookRunner;
     private final MemoryStore memoryStore;
     private final SystemPromptBuilder promptBuilder;
+    private final MessagePipeline messagePipeline;
 
     // Promoted to instance fields so CompactTool lambdas (wired in Task 6) can read live values.
     // Only valid during an active run() call.
@@ -99,6 +100,7 @@ public class QueryEngine {
         ));
         this.promptBuilder = new SystemPromptBuilder(skillRegistry, memoryStore,
                 System.getProperty("user.dir"));
+        this.messagePipeline = new MessagePipeline();
     }
 
     private static ContextCompactor defaultCompactor() {
@@ -145,9 +147,7 @@ public class QueryEngine {
                 var execResult = runtime.execute(toolUses, currentCtx);
                 currentCtx = execResult.updatedContext();
                 currentState.appendMessage(new Message(Role.ASSISTANT, response.content()));
-                currentState.appendMessage(
-                        buildToolResultMessage(execResult.toolResults(),
-                                currentCtx.planningState().needsReminder()));
+                currentState.appendMessage(buildToolResultMessage(execResult.toolResults()));
                 for (String msg : execResult.injectionMessages()) {
                     currentState.appendMessage(Message.user(msg));
                 }
@@ -202,26 +202,35 @@ public class QueryEngine {
     }
 
     private ModelRequest buildRequest(QueryState state, QueryParams params) {
+        var reminders   = collectReminders();
+        var attachments = collectAttachments();
         Integer maxTokens = state.maxOutputTokensOverride()
                 .orElse(params.maxOutputTokensOverride());
         return new ModelRequest(
-                MessageNormalizer.normalize(state.messages()),
+                messagePipeline.build(state.messages(), attachments, reminders),
                 augmentSystemPrompt(params.systemPrompt()),
                 toolRegistry.definitions(),
                 maxTokens
         );
     }
 
+    private List<ReminderMessage> collectReminders() {
+        if (currentCtx != null && currentCtx.planningState().needsReminder()) {
+            return List.of(new ReminderMessage(REMINDER_TEXT));
+        }
+        return List.of();
+    }
+
+    private List<Attachment> collectAttachments() {
+        return List.of();
+    }
+
     private String augmentSystemPrompt(String base) {
         return promptBuilder.build(base);
     }
 
-    private Message buildToolResultMessage(List<ContentBlock.ToolResult> results,
-                                           boolean prependReminder) {
+    private Message buildToolResultMessage(List<ContentBlock.ToolResult> results) {
         List<ContentBlock> blocks = new ArrayList<>();
-        if (prependReminder) {
-            blocks.add(new ContentBlock.Text(REMINDER_TEXT));
-        }
         // Layer 1: persist large tool outputs to disk
         for (var r : results) {
             var content = compactor.persistIfLarge(r.toolUseId(), r.content());

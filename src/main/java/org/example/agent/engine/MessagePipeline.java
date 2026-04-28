@@ -4,12 +4,15 @@ import org.example.agent.core.Message;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MessagePipeline {
 
     public List<Message> build(List<Message> raw,
                                List<Attachment> attachments,
                                List<ReminderMessage> reminders) {
+        Objects.requireNonNull(attachments, "attachments must not be null");
+        Objects.requireNonNull(reminders, "reminders must not be null");
         var messages = normalize(raw);
         messages = prependAttachments(messages, attachments);
         messages = appendReminders(messages, reminders);
@@ -31,7 +34,7 @@ public class MessagePipeline {
 
     private List<Message> appendReminders(List<Message> messages,
                                           List<ReminderMessage> reminders) {
-        if (reminders.isEmpty()) return messages;
+        if (reminders.isEmpty() || messages.isEmpty()) return messages;
         // Precondition: last message is always USER in a well-formed conversation.
         // normalize() guarantees alternating roles; the final message before a model
         // call is always the user turn.

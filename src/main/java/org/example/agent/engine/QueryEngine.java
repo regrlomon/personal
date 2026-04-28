@@ -26,6 +26,11 @@ public class QueryEngine {
     private static final String REMINDER_TEXT =
             "<reminder>Refresh your todo plan before continuing.</reminder>";
 
+    private static final int TRANSPORT_RETRY_BUDGET = 3;
+
+    private static final List<String> TRANSIENT_KEYWORDS =
+            List.of("timeout", "rate", "unavailable", "connection");
+
     private final ModelClient modelClient;
     private final ToolRegistry toolRegistry;
     private final ToolExecutionRuntime runtime;
@@ -37,6 +42,7 @@ public class QueryEngine {
     private final MemoryStore memoryStore;
     private final SystemPromptBuilder promptBuilder;
     private final MessagePipeline messagePipeline;
+    private final long backoffUnitMs;
 
     // Promoted to instance fields so CompactTool lambdas (wired in Task 6) can read live values.
     // Only valid during an active run() call.
@@ -44,44 +50,50 @@ public class QueryEngine {
     private ToolUseContext currentCtx;
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null, null);
+        this(modelClient, toolRegistry, null, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null, null, 1000L);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, defaultCompactor(), executor, null, null, null, null);
+        this(modelClient, toolRegistry, null, defaultCompactor(), executor, null, null, null, null, 1000L);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                        SkillRegistry skillRegistry) {
-        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null, null);
+        this(modelClient, toolRegistry, skillRegistry, defaultCompactor(), ForkJoinPool.commonPool(), null, null, null, null, 1000L);
     }
 
     QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                 ContextCompactor compactor, ExecutorService executor) {
-        this(modelClient, toolRegistry, null, compactor, executor, null, null, null, null);
+        this(modelClient, toolRegistry, null, compactor, executor, null, null, null, null, 1000L);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                        PermissionChecker permissionChecker, UserConfirmation userConfirmation) {
         this(modelClient, toolRegistry, null, defaultCompactor(),
-                ForkJoinPool.commonPool(), permissionChecker, userConfirmation, null, null);
+                ForkJoinPool.commonPool(), permissionChecker, userConfirmation, null, null, 1000L);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, HookRunner hookRunner) {
         this(modelClient, toolRegistry, null, defaultCompactor(),
-                ForkJoinPool.commonPool(), null, null, hookRunner, null);
+                ForkJoinPool.commonPool(), null, null, hookRunner, null, 1000L);
     }
 
     public QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, MemoryStore memoryStore) {
         this(modelClient, toolRegistry, null, defaultCompactor(),
-                ForkJoinPool.commonPool(), null, null, null, memoryStore);
+                ForkJoinPool.commonPool(), null, null, null, memoryStore, 1000L);
+    }
+
+    QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry, long backoffUnitMs) {
+        this(modelClient, toolRegistry, null, defaultCompactor(),
+                ForkJoinPool.commonPool(), null, null, null, null, backoffUnitMs);
     }
 
     private QueryEngine(ModelClient modelClient, ToolRegistry toolRegistry,
                         SkillRegistry skillRegistry, ContextCompactor compactor,
                         ExecutorService executor,
                         PermissionChecker permissionChecker, UserConfirmation userConfirmation,
-                        HookRunner hookRunner, MemoryStore memoryStore) {
+                        HookRunner hookRunner, MemoryStore memoryStore,
+                        long backoffUnitMs) {
         this.modelClient = modelClient;
         this.toolRegistry = toolRegistry;
         this.skillRegistry = skillRegistry;
@@ -90,6 +102,7 @@ public class QueryEngine {
         this.userConfirmation = userConfirmation;
         this.hookRunner = hookRunner;
         this.memoryStore = memoryStore;
+        this.backoffUnitMs = backoffUnitMs;
         var router = new ToolRouter(toolRegistry);
         this.runtime = new ToolExecutionRuntime(router, executor);
         toolRegistry.register(new CompactTool(
@@ -132,7 +145,18 @@ public class QueryEngine {
                 return new QueryResult.Success(currentState.messages(), currentState.turnCount());
             }
 
-            var response = modelClient.call(buildRequest(currentState, params));
+            ModelResponse response;
+            try {
+                response = modelClient.call(buildRequest(currentState, params));
+            } catch (Exception e) {
+                if (currentState.transportRetryCount() >= TRANSPORT_RETRY_BUDGET) {
+                    throw e;
+                }
+                var transition = classifyException(currentState.transportRetryCount() + 1, e);
+                if (transition == null) throw e;
+                advance(currentState, transition, null);
+                continue;
+            }
 
             if (response.stopReason() == StopReason.TOOL_USE) {
                 var toolUses = response.content().stream()
@@ -193,7 +217,18 @@ public class QueryEngine {
                 state.setLastTransition(c);
                 // intentionally no incrementTurn — retry immediately
             }
-            case TransitionReason.TransportRetry r  -> { /* s11 extension */ }
+            case TransitionReason.TransportRetry r -> {
+                System.out.printf("[Recovery] backoff attempt=%d cause=%s%n",
+                        r.attempt(), r.cause().getMessage());
+                try {
+                    Thread.sleep((long) backoffDelay(r.attempt()));
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(ie);
+                }
+                currentState.incrementTransportRetry();
+                currentState.setLastTransition(r);
+            }
             case TransitionReason.StopHookContinuation h -> { /* s08 extension */ }
             case TransitionReason.BudgetContinuation b   -> { /* budget extension */ }
             case TransitionReason.ToolResultContinuation c ->
@@ -212,6 +247,18 @@ public class QueryEngine {
                 toolRegistry.definitions(),
                 maxTokens
         );
+    }
+
+    private static TransitionReason classifyException(int attempt, Throwable e) {
+        var msg = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+        if (TRANSIENT_KEYWORDS.stream().anyMatch(msg::contains)) {
+            return new TransitionReason.TransportRetry(attempt, e);
+        }
+        return null;
+    }
+
+    private double backoffDelay(int attempt) {
+        return Math.min((double) backoffUnitMs * Math.pow(2, attempt - 1), 30_000.0);
     }
 
     private List<ReminderMessage> collectReminders() {

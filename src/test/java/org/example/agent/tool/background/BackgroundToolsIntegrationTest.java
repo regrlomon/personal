@@ -114,4 +114,31 @@ class BackgroundToolsIntegrationTest {
         }
         throw new AssertionError("Timed out waiting for " + expected);
     }
+
+    // ── BackgroundListTool ───────────────────────────────────────────────────
+
+    @Test
+    void list_shows_all_submitted_tasks() throws InterruptedException {
+        var id1 = manager.submit(new ShellBackgroundTask("echo aaa", 10));
+        var id2 = manager.submit(new ShellBackgroundTask("sleep 10", 30));
+        var tool = new BackgroundListTool();
+        var result = tool.execute(Map.of(), ctx);
+        assertTrue(result.ok());
+        assertTrue(result.content().contains(id1));
+        assertTrue(result.content().contains(id2));
+        assertTrue(result.content().contains("echo aaa"));
+        assertTrue(result.content().contains("sleep 10"));
+    }
+
+    @Test
+    void list_returns_no_tasks_message_when_empty() {
+        var result = new BackgroundListTool().execute(Map.of(), ctx);
+        assertTrue(result.ok());
+        assertTrue(result.content().contains("no background tasks"));
+    }
+
+    @Test
+    void list_definition_has_correct_name() {
+        assertEquals("background_list", new BackgroundListTool().definition().name());
+    }
 }

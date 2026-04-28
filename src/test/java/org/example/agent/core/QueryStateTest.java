@@ -112,4 +112,18 @@ class QueryStateTest {
         assertThrows(UnsupportedOperationException.class,
                 () -> state.messages().add(Message.user("hack")));
     }
+
+    @Test
+    void transport_retry_count_starts_at_zero() {
+        var state = QueryState.from(minimalParams());
+        assertEquals(0, state.transportRetryCount());
+    }
+
+    @Test
+    void increment_transport_retry_increments_count() {
+        var state = QueryState.from(minimalParams());
+        state.incrementTransportRetry();
+        state.incrementTransportRetry();
+        assertEquals(2, state.transportRetryCount());
+    }
 }

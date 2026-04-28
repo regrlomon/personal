@@ -10,6 +10,7 @@ public class QueryState {
     private final List<Message> messages;
     private int turnCount = 1;
     private int continuationCount = 0;
+    private int transportRetryCount = 0;
     private boolean hasAttemptedCompact = false;
     private boolean stopHookActive = false;
     private Integer maxOutputTokensOverride;
@@ -36,6 +37,10 @@ public class QueryState {
 
     public int continuationCount() {
         return continuationCount;
+    }
+
+    public int transportRetryCount() {
+        return transportRetryCount;
     }
 
     public boolean hasAttemptedCompact() {
@@ -66,6 +71,10 @@ public class QueryState {
 
     public void incrementContinuation() {
         continuationCount++;
+    }
+
+    public void incrementTransportRetry() {
+        transportRetryCount++;
     }
 
     public void markCompactAttempted() {

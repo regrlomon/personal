@@ -222,6 +222,7 @@ public class QueryEngine {
     }
 
     private List<Attachment> collectAttachments() {
+        // Placeholder: large hook outputs and other attachments wired in a later task (s19).
         return List.of();
     }
 

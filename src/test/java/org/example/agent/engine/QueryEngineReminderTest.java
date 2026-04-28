@@ -36,8 +36,7 @@ class QueryEngineReminderTest {
         return registry;
     }
 
-    // --- RED test: verifies reminders are ephemeral (not persisted to state) ---
-    // FAILS with old code (reminder IS in state); PASSES after refactor.
+    // Contract: reminders are ephemeral and must not appear in persisted state.
 
     @Test
     void reminder_not_persisted_to_state() {

@@ -12,6 +12,7 @@ import org.example.agent.permission.PermissionChecker;
 import org.example.agent.permission.UserConfirmation;
 import org.example.agent.tool.*;
 import org.example.agent.tool.skill.SkillRegistry;
+import org.example.agent.tool.task.TaskManager;
 
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -128,8 +129,8 @@ public class QueryEngine {
         var ctx = baseCtx;
         if (permissionChecker != null) ctx = ctx.withPermissions(permissionChecker, userConfirmation);
         if (hookRunner != null) ctx = ctx.withHookRunner(hookRunner);
-        var taskManagerPath = java.nio.file.Paths.get(System.getProperty("user.dir"), ".tasks");
-        ctx = ctx.withTaskManager(new org.example.agent.tool.task.TaskManager(taskManagerPath));
+        var taskManagerPath = Paths.get(System.getProperty("user.dir"), ".tasks");
+        ctx = ctx.withTaskManager(new TaskManager(taskManagerPath));
         currentCtx = ctx;
 
         // SessionStart hook

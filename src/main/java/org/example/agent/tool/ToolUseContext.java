@@ -3,6 +3,7 @@ package org.example.agent.tool;
 import org.example.agent.hook.HookRunner;
 import org.example.agent.permission.PermissionChecker;
 import org.example.agent.permission.UserConfirmation;
+import org.example.agent.tool.background.BackgroundManager;
 import org.example.agent.tool.task.TaskManager;
 import org.example.agent.tool.todo.PlanningState;
 
@@ -22,6 +23,7 @@ public class ToolUseContext {
     private final PermissionChecker permissionChecker;
     private final UserConfirmation userConfirmation;
     private final HookRunner hookRunner;
+    private final BackgroundManager backgroundManager;
 
     private ToolUseContext(Map<String, Object> permissionContext,
                            Map<String, Object> mcpClients,
@@ -32,7 +34,8 @@ public class ToolUseContext {
                            TaskManager taskManager,
                            PermissionChecker permissionChecker,
                            UserConfirmation userConfirmation,
-                           HookRunner hookRunner) {
+                           HookRunner hookRunner,
+                           BackgroundManager backgroundManager) {
         this.permissionContext = permissionContext;
         this.mcpClients = mcpClients;
         this.appState = appState;
@@ -43,12 +46,13 @@ public class ToolUseContext {
         this.permissionChecker = permissionChecker;
         this.userConfirmation = userConfirmation;
         this.hookRunner = hookRunner;
+        this.backgroundManager = backgroundManager;
     }
 
     public static ToolUseContext defaults(String cwd) {
         Objects.requireNonNull(cwd, "cwd must not be null");
         return new ToolUseContext(Map.of(), Map.of(), Map.of(), List.of(), cwd,
-                new PlanningState(), null, null, null, null);
+                new PlanningState(), null, null, null, null, null);
     }
 
     public Map<String, Object> permissionContext() { return permissionContext; }
@@ -66,27 +70,36 @@ public class ToolUseContext {
         Objects.requireNonNull(notifications, "notifications must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
                 List.copyOf(notifications), cwd, planningState, taskManager,
-                permissionChecker, userConfirmation, hookRunner);
+                permissionChecker, userConfirmation, hookRunner, backgroundManager);
     }
 
     public ToolUseContext withTaskManager(TaskManager manager) {
         Objects.requireNonNull(manager, "taskManager must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
                 notifications, cwd, planningState, manager,
-                permissionChecker, userConfirmation, hookRunner);
+                permissionChecker, userConfirmation, hookRunner, backgroundManager);
     }
 
     public ToolUseContext withPermissions(PermissionChecker checker, UserConfirmation confirmation) {
         Objects.requireNonNull(checker,      "checker must not be null");
         Objects.requireNonNull(confirmation, "confirmation must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
-                notifications, cwd, planningState, taskManager, checker, confirmation, hookRunner);
+                notifications, cwd, planningState, taskManager, checker, confirmation, hookRunner, backgroundManager);
     }
 
     public ToolUseContext withHookRunner(HookRunner runner) {
         Objects.requireNonNull(runner, "hookRunner must not be null");
         return new ToolUseContext(permissionContext, mcpClients, appState,
                 notifications, cwd, planningState, taskManager,
-                permissionChecker, userConfirmation, runner);
+                permissionChecker, userConfirmation, runner, backgroundManager);
     }
+
+    public ToolUseContext withBackgroundManager(BackgroundManager manager) {
+        Objects.requireNonNull(manager, "backgroundManager must not be null");
+        return new ToolUseContext(permissionContext, mcpClients, appState,
+                notifications, cwd, planningState, taskManager,
+                permissionChecker, userConfirmation, hookRunner, manager);
+    }
+
+    public BackgroundManager backgroundManager() { return backgroundManager; }
 }

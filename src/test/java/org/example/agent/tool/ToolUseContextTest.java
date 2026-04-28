@@ -1,6 +1,7 @@
 package org.example.agent.tool;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -69,6 +70,16 @@ class ToolUseContextTest {
         var updated = ctx.withTaskManager(manager);
         assertSame(manager, updated.taskManager());
         assertSame(ctx.planningState(), updated.planningState());
+    }
+
+    @Test
+    void withBackgroundManager_returns_new_context_with_manager(@TempDir java.nio.file.Path tempDir) {
+        var ctx = ToolUseContext.defaults(tempDir.toString());
+        var manager = new org.example.agent.tool.background.BackgroundManager(tempDir);
+        var updated = ctx.withBackgroundManager(manager);
+        assertSame(manager, updated.backgroundManager());
+        assertNull(ctx.backgroundManager());
+        manager.shutdown();
     }
 }
 

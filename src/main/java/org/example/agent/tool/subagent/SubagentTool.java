@@ -1,4 +1,4 @@
-package org.example.agent.tool.task;
+package org.example.agent.tool.subagent;
 
 import org.example.agent.core.*;
 import org.example.agent.engine.QueryEngine;
@@ -10,10 +10,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TaskTool implements Tool {
+public class SubagentTool implements Tool {
 
     private static final ToolDefinition DEFINITION = new ToolDefinition(
-            "task",
+            "subagent",
             "Run a subtask in a clean context and return a summary.",
             Map.of(
                     "type", "object",
@@ -27,7 +27,7 @@ public class TaskTool implements Tool {
     private final QueryEngine subEngine;
     private final int maxTurns;
 
-    public TaskTool(ModelClient modelClient, ToolRegistry subRegistry, int maxTurns) {
+    public SubagentTool(ModelClient modelClient, ToolRegistry subRegistry, int maxTurns) {
         this.subEngine = new QueryEngine(modelClient, subRegistry);
         this.maxTurns = maxTurns;
     }

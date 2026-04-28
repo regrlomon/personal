@@ -149,6 +149,17 @@ class TaskToolsIntegrationTest {
     }
 
     @Test
+    void list_excludes_deleted_tasks() {
+        manager.create("Task A", "", List.of());
+        manager.update(1, new TaskPatch(TaskStatus.DELETED, null, null, null, List.of(), List.of()));
+        manager.create("Task B", "", List.of());
+        var result = new TaskListTool().execute(Map.of(), ctx);
+        assertTrue(result.ok());
+        assertFalse(result.content().contains("Task A"));
+        assertTrue(result.content().contains("Task B"));
+    }
+
+    @Test
     void list_returns_no_tasks_message_when_empty() {
         var result = new TaskListTool().execute(Map.of(), ctx);
         assertTrue(result.ok());

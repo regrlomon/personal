@@ -30,7 +30,9 @@ public class TaskListTool implements Tool {
         if (taskManager == null) return ToolResultEnvelope.error("task manager not configured");
 
         try {
-            var tasks = taskManager.list();
+            var tasks = taskManager.list().stream()
+                    .filter(t -> t.status() != TaskStatus.DELETED)
+                    .toList();
             if (tasks.isEmpty()) return ToolResultEnvelope.success("(no tasks)");
 
             var sb = new StringBuilder();
